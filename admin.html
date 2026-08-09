@@ -6,10 +6,12 @@
     <title>Dashboard Admin | Cooperativa Norte</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
+    
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="body-panel admin-layout">
@@ -21,100 +23,178 @@
         </div>
         <nav class="sidebar__nav">
             <a href="#" class="nav-item active" data-vista="dashboard"><i class="fa-solid fa-chart-pie"></i> Resumen</a>
-            <a href="#" class="nav-item" data-vista="revisiones"><i class="fa-solid fa-file-signature"></i> En Revisión</a>
-            <a href="#" class="nav-item" data-vista="clientes"><i class="fa-solid fa-users"></i> Directorio</a>
+            <a href="#" class="nav-item" data-vista="afiliados"><i class="fa-solid fa-users"></i> Afiliados</a>
+            <a href="#" class="nav-item" data-vista="revisiones"><i class="fa-solid fa-clock-rotate-left"></i> Pagos en Revisión</a>
+            <a href="#" class="nav-item" data-vista="contabilidad"><i class="fa-solid fa-calculator"></i> Contabilidad Mensual</a>
         </nav>
         <div class="sidebar__footer">
-            <a href="index.html" class="nav-item nav-item--logout"><i class="fa-solid fa-power-off"></i> Salir</a>
+            <a href="index.html" class="btn-logout"><i class="fa-solid fa-right-from-bracket cerrar__s"></i> Cerrar Sesión</a>
         </div>
     </aside>
 
-    <main class="admin-content main-content">
-        
-        <div id="vista-dashboard" class="vista-seccion">
-            <div class="top-section">
-                <h1>Dashboard Operativo</h1>
+    <main class="main-content">
+        <section class="vista-seccion" id="vista-dashboard">
+            <div class="header-titulos" style="margin-bottom: 25px;">
+                <h1>Resumen General</h1>
+                <p class="subtitle">Estado global de la Cooperativa Norte</p>
             </div>
-            <section class="kpi-section">
-                <div class="kpi-card" style="border-left-color: #006412;">
-                    <span class="kpi-card__title">Ingresos Confirmados</span>
-                    <h2 class="kpi-card__value" id="kpi-ingresos">$0.00</h2>
+            <div class="kpi-section">
+                <div class="kpi-card">
+                    <span class="kpi-card__title">Ingresos Totales (Global)</span>
+                    <div class="kpi-card__value" id="kpi-ingresos">$0.00</div>
                 </div>
-                <div class="kpi-card" style="border-left-color: #E9C46A;">
-                    <span class="kpi-card__title">Por Revisar</span>
-                    <h2 class="kpi-card__value" id="kpi-revisiones">0</h2>
+                <div class="kpi-card">
+                    <span class="kpi-card__title">Pagos Por Revisar</span>
+                    <div class="kpi-card__value" id="kpi-revisiones">0</div>
                 </div>
-                <div class="kpi-card" style="border-left-color: #45a143;">
-                    <span class="kpi-card__title">Total Afiliados</span>
-                    <h2 class="kpi-card__value" id="kpi-afiliados">0</h2>
+                <div class="kpi-card">
+                    <span class="kpi-card__title">Afiliados Totales</span>
+                    <div class="kpi-card__value" id="kpi-afiliados">0</div>
                 </div>
-            </section>
-        </div>
-
-        <div id="vista-revisiones" class="vista-seccion" style="display: none;">
-            <div class="top-section">
-                <h1>Pagos por Revisar</h1>
-                <p class="subtitle">Reportes enviados por Secretaría</p>
             </div>
-            <div class="grid-clientes" id="grid-admin-revisiones"></div>
-        </div>
+        </section>
 
-        <div id="vista-clientes" class="vista-seccion" style="display: none;">
+        <section class="vista-seccion" id="vista-afiliados" style="display: none;">
             <div class="top-section top-flex">
                 <div class="header-titulos">
-                    <h1>Directorio Completo</h1>
+                    <h1>Directorio de Afiliados</h1>
+                    <p class="subtitle">Gestión de miembros y exportación de datos</p>
                 </div>
-                <div class="acciones-top" style="display: flex; gap: 10px;">
-                    <button id="btn-exportar-excel" class="btn-primario" type="button" style="background: #10B981; color: white;">
-                    <i class="fa-solid fa-file-excel"></i> Exportar Lista
-                    </button>
-                    <button class="btn-primario" id="btn-agregar-cliente" style="background-color: #006412;">
-                        <i class="fa-solid fa-user-plus"></i> Nuevo Afiliado
-                    </button>
+                <div class="acciones-top" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn-primario" id="btn-agregar-cliente" style="background:#006412; color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-user-plus"></i> Nuevo Afiliado</button>
+                    <button class="btn-primario" id="btn-exportar-excel" style="background:#10B981; color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button>
                 </div>
             </div>
-            <div class="grid-clientes" id="grid-admin-clientes"></div>
-        </div>
+            <div class="afiliados-grid" id="grid-admin-clientes"></div>
+        </section>
 
-        <div class="modal-overlay" id="modal-cliente" style="display: none;">
-            <div class="modal-box" style="max-width: 520px;">
-                <div class="modal-box__header">
-                    <h3 style="color: #1F2937; margin: 0;">Agregar Afiliado</h3>
-                    <button class="btn-cerrar-modal" id="cerrar-modal-cliente" type="button"><i class="fa-solid fa-xmark"></i></button>
+        <section class="vista-seccion" id="vista-revisiones" style="display: none;">
+            <div class="header-titulos" style="margin-bottom: 25px;">
+                <h1>Aprobación de Pagos</h1>
+                <p class="subtitle">Verifica los detalles del pago reportado por Secretaría</p>
+            </div>
+            <div class="afiliados-grid" id="grid-admin-revisiones"></div>
+        </section>
+
+        <section class="vista-seccion" id="vista-contabilidad" style="display: none;">
+            <div class="top-section top-flex">
+                <div class="header-titulos">
+                    <h1>Contabilidad y Desglose Mensual</h1>
+                    <p class="subtitle">Consolidado acumulado de Fondos por mes (Expresado en Bolívares)</p>
                 </div>
-                <div class="modal-box__body" style="padding: 20px; max-height: 75vh; overflow-y: auto;">
+                <div>
+                    <select id="filtro-mes-contabilidad" class="input-form" style="padding: 10px; font-weight: bold; width: 220px;">
+                        </select>
+                </div>
+            </div>
+
+            <div class="kpi-section" style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                <div class="kpi-card" style="border-left: 5px solid #8B5CF6;">
+                    <span class="kpi-card__title">Ingreso Total del Mes</span>
+                    <div class="kpi-card__value" id="kpi-cont-total" style="color: #1F2937; font-size: 1.6rem;">0.00 Bs</div>
+                </div>
+                <div class="kpi-card" style="border-left: 5px solid #10B981;">
+                    <span class="kpi-card__title">Fondo Ahorros</span>
+                    <div class="kpi-card__value" id="kpi-cont-ahorros" style="color: #10B981; font-size: 1.6rem;">0.00 Bs</div>
+                </div>
+                <div class="kpi-card" style="border-left: 5px solid #3B82F6;">
+                    <span class="kpi-card__title">Aporte Funerario</span>
+                    <div class="kpi-card__value" id="kpi-cont-funerario" style="color: #3B82F6; font-size: 1.6rem;">0.00 Bs</div>
+                </div>
+                <div class="kpi-card" style="border-left: 5px solid #F59E0B;">
+                    <span class="kpi-card__title">Aporte Administrativo</span>
+                    <div class="kpi-card__value" id="kpi-cont-admin" style="color: #F59E0B; font-size: 1.6rem;">0.00 Bs</div>
+                </div>
+            </div>
+
+            <div style="background: white; border-radius: 12px; padding: 20px; margin-top: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <h3 style="margin-bottom: 15px; color:#1F2937;">Historial de Pagos del Mes (En Bolívares)</h3>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #E5E7EB; color: #4B5563;">
+                                <th style="padding: 10px;">Fecha</th>
+                                <th style="padding: 10px;">Afiliado</th>
+                                <th style="padding: 10px;">Método / Ref</th>
+                                <th style="padding: 10px;">Funerario</th>
+                                <th style="padding: 10px;">Admin</th>
+                                <th style="padding: 10px;">Ahorros</th>
+                                <th style="padding: 10px;">Total Pago</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-historial-contabilidad">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <div class="modal-overlay" id="modal-cliente" style="display: none; z-index: 2000;">
+            <div class="modal-box" style="max-width: 550px;">
+                <div class="modal-box__header">
+                    <h3 style="color: #1F2937;"><i class="fa-solid fa-user-plus" style="color: #006412; margin-right: 8px;"></i>Registrar Afiliado</h3>
+                    <button class="btn-cerrar-modal" id="cerrar-modal-cliente">&times;</button>
+                </div>
+                <div class="modal-box__body">
+                    <p style="color: #6B7280; font-size: 0.9rem; margin-bottom: 20px;">Ingresa los datos del nuevo miembro. Todos los campos son requeridos.</p>
                     <form id="form-cliente" style="display: flex; flex-direction: column; gap: 15px;">
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">Nombre Completo</label>
+                                <div style="position: relative;">
+                                    <i class="fa-solid fa-user" style="position: absolute; left: 12px; top: 12px; color: #9CA3AF;"></i>
+                                    <input type="text" id="cli-nombre" placeholder="Ej: Juan Pérez" class="input-form" style="padding-left: 35px;" required>
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">Cédula de Identidad</label>
+                                <div style="position: relative;">
+                                    <i class="fa-solid fa-id-card" style="position: absolute; left: 12px; top: 12px; color: #9CA3AF;"></i>
+                                    <input type="text" id="cli-cedula" placeholder="Ej: V-12345678" class="input-form" style="padding-left: 35px;" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">N° de Contrato</label>
+                                <div style="position: relative;">
+                                    <i class="fa-solid fa-file-contract" style="position: absolute; left: 12px; top: 12px; color: #9CA3AF;"></i>
+                                    <input type="text" id="cli-contrato" placeholder="Ej: 001-A" class="input-form" style="padding-left: 35px;" required>
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">Teléfono</label>
+                                <div style="position: relative;">
+                                    <i class="fa-solid fa-phone" style="position: absolute; left: 12px; top: 12px; color: #9CA3AF;"></i>
+                                    <input type="text" id="cli-telefono" placeholder="Ej: 0414-1234567" class="input-form" style="padding-left: 35px;" required>
+                                </div>
+                            </div>
+                        </div>
+
                         <div>
-                            <label style="font-size:0.8rem; font-weight:bold;">Nombre Completo</label>
-                            <input type="text" id="cli-nombre" placeholder="Ej. Carlos Gómez" required class="input-form">
-                        </div>
-                        <div style="display:flex; gap:10px;">
-                            <div style="flex:1;">
-                                <label style="font-size:0.8rem; font-weight:bold;">Cédula</label>
-                                <input type="text" id="cli-cedula" placeholder="V-12345678" required class="input-form">
-                            </div>
-                            <div style="flex:1;">
-                                <label style="font-size:0.8rem; font-weight:bold;">N° Contrato</label>
-                                <input type="text" id="cli-contrato" placeholder="12345-A" required class="input-form">
+                            <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">Fecha de Vencimiento Inicial</label>
+                            <div style="position: relative;">
+                                <i class="fa-solid fa-calendar" style="position: absolute; left: 12px; top: 12px; color: #9CA3AF;"></i>
+                                <input type="date" id="cli-vence" class="input-form" style="padding-left: 35px;" required>
                             </div>
                         </div>
 
-                        <div style="display:flex; gap:10px;">
-                            <div style="flex:1;">
-                                <label style="font-size:0.8rem; font-weight:bold;">N° de Familiares</label>
-                                <input type="number" id="cli-fam" min="0" max="10" value="0" required class="input-form">
-                            </div>
-                            <div style="flex:1;">
-                                <label style="font-size:0.8rem; font-weight:bold;">Vencimiento</label>
-                                <input type="date" id="cli-vence" required class="input-form">
-                            </div>
-                        </div>
-
-                        <div id="contenedor-familiares" style="display: flex; flex-direction: column; gap: 10px;"></div>
-
-                        <button type="submit" class="btn-primario" style="background:#006412; margin-top: 10px;">Guardar Afiliado</button>
+                        <button type="submit" class="btn-primario" style="background:#006412; margin-top: 10px; border:none; padding:12px; border-radius:8px; color:white; font-weight:bold; cursor:pointer; font-size: 1rem;"><i class="fa-solid fa-floppy-disk" style="margin-right: 8px;"></i> Guardar Afiliado</button>
                     </form>
                 </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="modal-detalles-pago" style="display: none; z-index: 2500;">
+            <div class="modal-box" style="max-width: 420px;">
+                <div class="modal-box__header">
+                    <h3>Desglose Contable del Pago</h3>
+                    <button class="btn-cerrar-modal" id="cerrar-modal-detalles">&times;</button>
+                </div>
+                <div class="modal-box__body" id="contenido-detalles-modal" style="font-size: 0.9rem; line-height: 1.6;">
+                    </div>
             </div>
         </div>
 
@@ -124,20 +204,15 @@
                     <i class="fa-solid fa-triangle-exclamation"></i>
                 </div>
                 <h3 style="color: #1F2937; margin-bottom: 10px;">¿Eliminar Afiliado?</h3>
-                <p style="color: #6B7280; font-size: 0.9rem; margin-bottom: 20px;">Esta acción borrará al cliente del directorio de la Administradora y de Secretaría de forma permanente.</p>
+                <p style="color: #6B7280; font-size: 0.9rem; margin-bottom: 20px;">Esta acción borrará al cliente del directorio permanentemente.</p>
                 <div style="display: flex; gap: 10px;">
                     <button id="btn-cancelar-eliminar" style="flex:1; padding: 10px; border-radius: 8px; border: 1px solid #D1D5DB; background: white; cursor: pointer; font-weight: bold;">Cancelar</button>
                     <button id="btn-confirmar-eliminar" style="flex:1; padding: 10px; border-radius: 8px; border: none; background: #EF4444; color: white; cursor: pointer; font-weight: bold;">Eliminar</button>
                 </div>
             </div>
         </div>
-        
-
     </main>
 
-    
-
-    
-    <script type="module" src="admin.js"></script>
+    <script src="admin.js"></script>
 </body>
 </html>

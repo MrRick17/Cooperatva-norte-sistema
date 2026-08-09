@@ -7,6 +7,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 </head>
 <body class="body-panel">
 
@@ -35,13 +38,13 @@
             </div>
 
         <div class="modal-overlay" id="modal-pago" style="display: none;">
-            <div class="modal-box">
+            <div class="modal-box" style="max-width: 480px;">
                 <div class="modal-box__header">
                     <h3>Reportar Pago</h3>
                     <button class="btn-cerrar-modal" id="cerrar-modal-pago">&times;</button>
                 </div>
                 <div class="modal-box__body">
-                    <p style="margin-bottom: 15px; font-size: 0.9rem; color: #4B5563;">
+                    <p style="margin-bottom: 12px; font-size: 0.9rem; color: #4B5563;">
                         Afiliado: <strong id="pago-cliente-nombre" style="color: #1F2937;">-</strong>
                     </p>
                     <form id="form-pago" style="display: flex; flex-direction: column; gap: 12px;">
@@ -49,21 +52,45 @@
                         
                         <div style="display: flex; gap: 10px;">
                             <div style="flex: 1;">
-                                <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Monto en Dólares ($)</label>
-                                <input type="number" id="pago-monto-usd" step="0.01" placeholder="0.00" class="input-form" style="padding:10px;">
+                                <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Fecha del Pago</label>
+                                <input type="date" id="pago-fecha" class="input-form" style="padding:8px;" required>
                             </div>
                             <div style="flex: 1;">
-                                <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Monto en Bolívares (Bs)</label>
-                                <input type="number" id="pago-monto-bs" step="0.01" placeholder="0.00" class="input-form" style="padding:10px;">
+                                <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Meses a Pagar</label>
+                                <input type="number" id="pago-meses" min="1" value="1" class="input-form" style="padding:8px;" required>
                             </div>
-                            
+                        </div>
+
+                        <div style="display: flex; gap: 10px;">
+                            <div style="flex: 1;">
+                                <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Monto USD ($)</label>
+                                <input type="number" id="pago-monto-usd" step="0.01" placeholder="0.00" class="input-form" style="padding:8px;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Monto Bs</label>
+                                <input type="number" id="pago-monto-bs" step="0.01" placeholder="0.00" class="input-form" style="padding:8px;">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Método de Pago</label>
+                            <select id="pago-metodo" class="input-form" style="padding:8px;">
+                                <option value="pago_movil">Pago Móvil</option>
+                                <option value="transferencia">Transferencia Bancaria</option>
+                                <option value="efectivo">Efectivo</option>
+                            </select>
+                        </div>
+
+                        <div id="contenedor-referencia">
+                            <label id="label-referencia" style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Últimos 4 dígitos de Referencia</label>
+                            <input type="text" id="pago-referencia" maxlength="4" placeholder="Ej: 4582" class="input-form" style="padding:8px;" required>
                         </div>
 
                         <div id="tasa-informativa-modal" style="font-size: 0.78rem; color: #006412; font-weight: 700; text-align: center; background: rgba(0, 100, 18, 0.05); padding: 6px; border-radius: 6px;">
                             Cargando tasa oficial...
                         </div>
 
-                        <button type="submit" class="btn-primario" style="width: 100%; margin-top: 10px; justify-content: center; background: #006412; color: white;">Enviar a Revisión</button>
+                        <button type="submit" class="btn-primario" style="width: 100%; margin-top: 5px; justify-content: center; background: #006412; color: white;">Enviar a Revisión</button>
                     </form>
                 </div>
             </div>
@@ -71,9 +98,6 @@
         
     </main>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    
     <script src="usuario.js"></script>
 </body>
 </html>
