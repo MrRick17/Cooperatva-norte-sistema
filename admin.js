@@ -1,6 +1,20 @@
+const firebaseConfig = {
+    apiKey: "AIzaSyDLYshRQQn3S9Rg8Vq5BB5mEIa0PiPNuqo",
+    authDomain: "cooperativa-norte.firebaseapp.com",
+    projectId: "cooperativa-norte",
+    storageBucket: "cooperativa-norte.firebasestorage.app",
+    messagingSenderId: "325556620984",
+    appId: "1:325556620984:web:25944b557a571156a82e4d"
+};
+
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore();
+
 document.addEventListener('DOMContentLoaded', () => {
     
-    // 1. NAVEGACIÓN SPA
+    // NAVEGACIÓN SPA
     const navItems = document.querySelectorAll('.nav-item[data-vista]');
     const vistas = document.querySelectorAll('.vista-seccion');
 
@@ -12,40 +26,64 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const destino = item.getAttribute('data-vista');
             vistas.forEach(v => v.style.display = 'none');
-            document.getElementById(`vista-${destino}`).style.display = 'block';
+            const vistaDestino = document.getElementById(`vista-${destino}`);
+            if(vistaDestino) vistaDestino.style.display = 'block';
         });
     });
 
-    // 2. DATA Y VARIABLES GLOBALES
-    let clientes = JSON.parse(localStorage.getItem('coop_clientes')) || [];
-    let ingresosTotalesUSD = parseFloat(localStorage.getItem('coop_ingresos')) || 0;
+    let clientes = [];
+    let ingresosTotalesUSD = 0;
     let TASA_BCV = 0;
 
-    // Conexión con la API oficial del BCV en tiempo real
     async function obtenerTasaBCV() {
         try {
             const respuesta = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
             const datos = await respuesta.json();
             TASA_BCV = datos.promedio || datos.venta || 0;
         } catch (error) {
-            console.error("Error consultando la tasa BCV:", error);
-            TASA_BCV = 0; // Respaldo en caso de caída
+            console.error("Error API:", error);
+            TASA_BCV = 0;
         }
-        actualizarTodo();
+        actualizarPantalla();
     }
 
-    const actualizarTodo = () => {
+    // ESCUCHADOR EN TIEMPO REAL
+    function escucharNubeEnTiempoReal() {
+        db.collection("cooperativa").doc("directorio").onSnapshot((docSnap) => {
+            if (docSnap.exists) {
+                const data = docSnap.data();
+                clientes = data.listaAfiliados || [];
+                ingresosTotalesUSD = data.ingresosUSD || 0;
+                actualizarPantalla();
+            }
+        }, (error) => {
+            console.error("Error escuchando Firebase:", error);
+        });
+        obtenerTasaBCV();
+    }
+
+    async function guardarNube() {
+    try {
+        await db.collection("cooperativa").doc("directorio").set({
+            listaAfiliados: clientes,
+            ingresosUSD: ingresosTotalesUSD
+        });
+        console.log("¡Datos guardados exitosamente en la nube!");
+    } catch (error) {
+        console.error("Error detallado de Firebase:", error);
+        // Esto te mostrará el error exacto en una alerta flotante en la página
+        alert("⚠️ Error al guardar en Firebase: " + error.message);
+    }
+}
+
+    const actualizarPantalla = () => {
         const ahora = Date.now();
         clientes.forEach(c => {
             if (c.estado === 'aldia' && ahora > c.fechaVencimiento) c.estado = 'atrasado';
         });
-        localStorage.setItem('coop_clientes', JSON.stringify(clientes));
-        localStorage.setItem('coop_ingresos', ingresosTotalesUSD);
 
-        // Cálculos del Dashboard
         const enRevision = clientes.filter(c => c.estado === 'revision');
         
-        // Renderizar el KPI de ingresos con la conversión a Bolívares
         const kpiIngresos = document.getElementById('kpi-ingresos');
         if (kpiIngresos) {
             if (TASA_BCV > 0) {
@@ -59,8 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        document.getElementById('kpi-revisiones').textContent = enRevision.length;
-        document.getElementById('kpi-afiliados').textContent = clientes.length;
+        const kpiRev = document.getElementById('kpi-revisiones');
+        const kpiAfi = document.getElementById('kpi-afiliados');
+        if (kpiRev) kpiRev.textContent = enRevision.length;
+        if (kpiAfi) kpiAfi.textContent = clientes.length;
 
         renderizarRevisiones(enRevision);
         renderizarDirectorio();
@@ -68,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderizarRevisiones = (lista) => {
         const grid = document.getElementById('grid-admin-revisiones');
+        if(!grid) return;
         grid.innerHTML = '';
         if(lista.length === 0) {
             grid.innerHTML = '<p style="color:#6B7280; grid-column:1/-1;">No hay pagos pendientes por revisar.</p>';
@@ -78,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
             grid.innerHTML += `
                 <div class="cliente-card card-revision">
                     <h3 style="margin:0; font-size:1.1rem;">${c.nombre}</h3>
-                    <p style="margin:5px 0; font-size:0.85rem; color:#4B5563;">C.I: ${c.cedula} | Monto Reportado: <strong style="color:#006412;">$${c.montoPendiente}</strong></p>
+                    <p style="margin:5px 0; font-size:0.85rem; color:#4B5563;">C.I: ${c.cedula} | Monto: <strong style="color:#006412;">$${c.montoPendiente}</strong></p>
                     <button class="btn-accion-cliente" onclick="aprobarPago(${c.id})" style="background:#006412; color:white; border:none; margin-top:10px;"><i class="fa-solid fa-check"></i> Aprobar Pago</button>
                 </div>
             `;
@@ -87,9 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderizarDirectorio = () => {
         const grid = document.getElementById('grid-admin-clientes');
+        if(!grid) return;
         grid.innerHTML = '';
         if(clientes.length === 0) {
-            grid.innerHTML = '<p style="color:#6B7280; grid-column:1/-1;">No hay afiliados registrados en el sistema.</p>';
+            grid.innerHTML = '<p style="color:#6B7280; grid-column:1/-1;">No hay afiliados.</p>';
             return;
         }
 
@@ -111,14 +153,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                         <div>
                             <h3 style="margin:0; font-size:1.1rem; color:#1F2937;">${c.nombre}</h3>
-                            <p style="margin:2px 0 0 0; font-size:0.8rem; color:#6B7280;">Contrato: ${c.contrato} | C.I: ${c.cedula}</p>
+                            <p style="margin:2px 0 0 0; font-size:0.8rem; color:#6B7280;">C.I: ${c.cedula}</p>
                         </div>
                         <div style="display:flex; align-items:center; gap:8px;">
                             <span class="badge ${badgeClass}">${estadoTexto}</span>
-                            <button onclick="confirmarEliminar(${c.id})" style="background:none; border:none; color:#EF4444; cursor:pointer; font-size:1rem; padding:2px;" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                            <button onclick="confirmarEliminar(${c.id})" style="background:none; border:none; color:#EF4444; cursor:pointer;"><i class="fa-solid fa-trash"></i></button>
                         </div>
                     </div>
-                    
                     <div class="cliente-servicios" style="background:#F9FAFB; padding:10px; border-radius:8px; margin-top:12px;">
                         <p style="margin:0; font-size:0.82rem;"><i class="fa-solid fa-calendar" style="color:#006412;"></i> Vence: <strong>${new Date(c.fechaVencimiento).toLocaleDateString('es-ES')}</strong></p>
                         ${familiaresHTML}
@@ -128,137 +169,151 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // APROBAR PAGO
     window.aprobarPago = (id) => {
         const index = clientes.findIndex(c => c.id === id);
         if(index > -1) {
             const montoReportado = parseFloat(clientes[index].montoPendiente || 0);
             ingresosTotalesUSD += montoReportado;
-            
             clientes[index].montoAprobadoHistorial = (clientes[index].montoAprobadoHistorial || 0) + montoReportado;
             clientes[index].estado = 'aldia';
             clientes[index].montoPendiente = 0;
             
-            let date = new Date(clientes[index].fechaVencimiento);
-            if(date.getTime() < Date.now()) date = new Date();
-            date.setDate(date.getDate() + 28);
-            clientes[index].fechaVencimiento = date.getTime();
+            // CORRECCIÓN: Manejo correcto del tiempo sumando los 28 días exactos en milisegundos
+            let baseTime = clientes[index].fechaVencimiento;
+            if(baseTime < Date.now()) {
+                baseTime = Date.now();
+            }
+            clientes[index].fechaVencimiento = baseTime + (28 * 24 * 60 * 60 * 1000);
             
-            actualizarTodo();
+            guardarNube();
         }
     };
 
-    // ELIMINAR AFILIADO
     let clienteEliminarId = null;
     const modalEliminar = document.getElementById('modal-eliminar-afiliado');
-
     window.confirmarEliminar = (id) => {
         clienteEliminarId = id;
-        modalEliminar.style.display = 'flex';
+        if(modalEliminar) modalEliminar.style.display = 'flex';
     };
 
-    document.getElementById('btn-cancelar-eliminar').addEventListener('click', () => {
-        modalEliminar.style.display = 'none';
+    document.getElementById('btn-cancelar-eliminar')?.addEventListener('click', () => {
+        if(modalEliminar) modalEliminar.style.display = 'none';
         clienteEliminarId = null;
     });
 
-    document.getElementById('btn-confirmar-eliminar').addEventListener('click', () => {
+    document.getElementById('btn-confirmar-eliminar')?.addEventListener('click', () => {
         if(clienteEliminarId) {
             const clienteABorrar = clientes.find(c => c.id === clienteEliminarId);
             if (clienteABorrar && clienteABorrar.montoAprobadoHistorial) {
                 ingresosTotalesUSD -= parseFloat(clienteABorrar.montoAprobadoHistorial);
             }
             clientes = clientes.filter(c => c.id !== clienteEliminarId);
-            actualizarTodo();
-            modalEliminar.style.display = 'none';
-            clienteEliminarId = null;
+            guardarNube();
+            if(modalEliminar) modalEliminar.style.display = 'none';
         }
     });
 
-    // GENERADOR DINÁMICO DE CAMPOS DE FAMILIARES
+    const formCliente = document.getElementById('form-cliente');
     const inputNumFam = document.getElementById('cli-fam');
     const contenedorFam = document.getElementById('contenedor-familiares');
 
-    const generarCamposFamiliares = (cantidad) => {
-        contenedorFam.innerHTML = '';
-        const num = parseInt(cantidad) || 0;
-
-        if (num > 0) {
-            const titulo = document.createElement('h4');
-            titulo.textContent = 'Datos de los Familiares';
-            titulo.style.cssText = 'font-size:0.85rem; color:#006412; margin-top:5px; border-bottom:1px solid #E5E7EB; padding-bottom:4px;';
-            contenedorFam.appendChild(titulo);
-
-            for (let i = 1; i <= num; i++) {
-                const row = document.createElement('div');
-                row.className = 'familiar-row';
-                row.style.cssText = 'display:flex; gap:10px; background:#F9FAFB; padding:10px; border-radius:8px; border:1px solid #E5E7EB;';
-                row.innerHTML = `
-                    <div style="flex:1;">
-                        <input type="text" placeholder="Nombre Familiar ${i}" class="fam-nombre input-form" required style="font-size:0.82rem; padding:8px;">
-                    </div>
-                    <div style="flex:1;">
-                        <input type="text" placeholder="Parentesco (Ej. Hijo/a)" class="fam-parentesco input-form" required style="font-size:0.82rem; padding:8px;">
-                    </div>
-                `;
-                contenedorFam.appendChild(row);
+    if(inputNumFam) {
+        inputNumFam.addEventListener('input', (e) => {
+            contenedorFam.innerHTML = '';
+            const num = parseInt(e.target.value) || 0;
+            if (num > 0) {
+                for (let i = 1; i <= num; i++) {
+                    const row = document.createElement('div');
+                    row.className = 'familiar-row';
+                    row.style.cssText = 'display:flex; gap:10px; margin-bottom:5px;';
+                    row.innerHTML = `<input type="text" placeholder="Familiar ${i}" class="fam-nombre input-form" required><input type="text" placeholder="Parentesco" class="fam-parentesco input-form" required>`;
+                    contenedorFam.appendChild(row);
+                }
             }
-        }
-    };
-
-    inputNumFam.addEventListener('input', (e) => generarCamposFamiliares(e.target.value));
-
-    // MODAL Y FORMULARIO AGREGAR CLIENTE
-    const modal = document.getElementById('modal-cliente');
-    document.getElementById('btn-agregar-cliente').addEventListener('click', () => {
-        document.getElementById('form-cliente').reset();
-        contenedorFam.innerHTML = '';
-        
-        const def = new Date();
-        def.setDate(def.getDate() + 28);
-        const yyyy = def.getFullYear();
-        const mm = String(def.getMonth() + 1).padStart(2, '0');
-        const dd = String(def.getDate()).padStart(2, '0');
-        document.getElementById('cli-vence').value = `${yyyy}-${mm}-${dd}`;
-
-        modal.style.display = 'flex';
-    });
-
-    document.getElementById('cerrar-modal-cliente').addEventListener('click', () => modal.style.display = 'none');
-
-    document.getElementById('form-cliente').addEventListener('submit', (e) => {
-        e.preventDefault();
-        
-        const fechaInput = document.getElementById('cli-vence').value;
-        const [y, m, d] = fechaInput.split('-');
-
-        const familiaresFilas = contenedorFam.querySelectorAll('.familiar-row');
-        const listaFamiliares = [];
-        familiaresFilas.forEach(row => {
-            const nom = row.querySelector('.fam-nombre').value.trim();
-            const par = row.querySelector('.fam-parentesco').value.trim();
-            if (nom) listaFamiliares.push({ nombre: nom, parentesco: par });
         });
+    }
 
-        const nuevo = {
-            id: Date.now(),
-            nombre: document.getElementById('cli-nombre').value.trim(),
-            cedula: document.getElementById('cli-cedula').value.trim(),
-            contrato: document.getElementById('cli-contrato').value.trim(),
-            familiaresCount: listaFamiliares.length,
-            familiaresLista: listaFamiliares,
-            fechaVencimiento: new Date(y, m-1, d, 23, 59, 59).getTime(),
-            estado: 'aldia',
-            montoPendiente: 0
-        };
+    document.getElementById('btn-agregar-cliente')?.addEventListener('click', () => {
+        if(formCliente) formCliente.reset();
+        if(contenedorFam) contenedorFam.innerHTML = '';
+        
+        // PREDETERMINAR FECHA DE HOY + 28 DÍAS EN EL INPUT
+        const inputFecha = document.getElementById('cli-vence');
+        if (inputFecha) {
+            const hoyMas28 = new Date(Date.now() + (28 * 24 * 60 * 60 * 1000));
+            const yyyy = hoyMas28.getFullYear();
+            const mm = String(hoyMas28.getMonth() + 1).padStart(2, '0');
+            const dd = String(hoyMas28.getDate()).padStart(2, '0');
+            inputFecha.value = `${yyyy}-${mm}-${dd}`;
+        }
 
-        clientes.push(nuevo);
-        document.getElementById('form-cliente').reset();
-        contenedorFam.innerHTML = '';
-        modal.style.display = 'none';
-        actualizarTodo();
+        const modal = document.getElementById('modal-cliente');
+        if(modal) modal.style.display = 'flex';
     });
 
-    // Arrancar solicitando la tasa oficial
-    obtenerTasaBCV();
+    document.getElementById('cerrar-modal-cliente')?.addEventListener('click', () => {
+        const modal = document.getElementById('modal-cliente');
+        if(modal) modal.style.display = 'none';
+    });
+
+    if(formCliente) {
+        formCliente.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const fechaInput = document.getElementById('cli-vence').value;
+            
+            let timestampVencimiento;
+            if (fechaInput) {
+                const [y, m, d] = fechaInput.split('-');
+                timestampVencimiento = new Date(y, m-1, d, 23, 59, 59).getTime();
+            } else {
+                // Si no selecciona ninguna, por defecto sumamos 28 días desde hoy
+                timestampVencimiento = Date.now() + (28 * 24 * 60 * 60 * 1000);
+            }
+
+            const familiaresFilas = contenedorFam.querySelectorAll('.familiar-row');
+            const listaFamiliares = [];
+            familiaresFilas.forEach(row => {
+                const nom = row.querySelector('.fam-nombre').value.trim();
+                const par = row.querySelector('.fam-parentesco').value.trim();
+                if (nom) listaFamiliares.push({ nombre: nom, parentesco: par });
+            });
+
+            clientes.push({
+                id: Date.now(),
+                nombre: document.getElementById('cli-nombre').value.trim(),
+                cedula: document.getElementById('cli-cedula').value.trim(),
+                contrato: document.getElementById('cli-contrato').value.trim(),
+                familiaresCount: listaFamiliares.length,
+                familiaresLista: listaFamiliares,
+                fechaVencimiento: timestampVencimiento,
+                estado: 'aldia',
+                montoPendiente: 0
+            });
+
+            formCliente.reset();
+            if(contenedorFam) contenedorFam.innerHTML = '';
+            document.getElementById('modal-cliente').style.display = 'none';
+            guardarNube();
+        });
+    }
+
+    const btnExportar = document.getElementById('btn-exportar-excel');
+    if (btnExportar) {
+        btnExportar.addEventListener('click', () => {
+            if (clientes.length === 0) return alert('No hay afiliados para exportar.');
+            const datosExcel = clientes.map(c => ({
+                "N° Contrato": c.contrato || 'N/A', "Cédula": c.cedula || 'N/A',
+                "Nombre": c.nombre || 'N/A', "Familiares": c.familiaresCount || 0,
+                "Estado": c.estado === 'aldia' ? 'Al Día' : (c.estado === 'revision' ? 'En Revisión' : 'Atrasado')
+            }));
+            if (typeof XLSX !== 'undefined') {
+                const hoja = XLSX.utils.json_to_sheet(datosExcel);
+                const libro = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(libro, hoja, "Afiliados");
+                XLSX.writeFile(libro, "Reporte_Afiliados.xlsx");
+            }
+        });
+    }
+
+    escucharNubeEnTiempoReal();
 });

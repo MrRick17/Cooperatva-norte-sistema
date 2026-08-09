@@ -1,8 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
-    let clientes = JSON.parse(localStorage.getItem('coop_clientes')) || [];
+    
+    const firebaseConfig = {
+        apiKey: "AIzaSyDLYshRQQn3S9Rg8Vq5BB5mEIa0PiPNuqo",
+        authDomain: "cooperativa-norte.firebaseapp.com",
+        projectId: "cooperativa-norte",
+        storageBucket: "cooperativa-norte.firebasestorage.app",
+        messagingSenderId: "325556620984",
+        appId: "1:325556620984:web:25944b557a571156a82e4d"
+    };
+
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    let clientes = [];
+    let ingresosTotalesUSD = 0;
     let TASA_BCV = 0;
 
-    // 1. OBTENER TASA OFICIAL DEL BCV EN TIEMPO REAL
     async function obtenerTasaBCV() {
         const infoTasa = document.getElementById('tasa-informativa-modal');
         try {
@@ -14,40 +29,67 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error("Error consultando tasa para secretaría:", error);
-            if (infoTasa) infoTasa.textContent = "Error al cargar tasa. Conversión manual requerida.";
         }
-        renderizarClientes();
     }
 
-    const verificarVencimientos = () => {
-        const ahora = Date.now();
-        let modificado = false;
-        clientes.forEach(c => {
-            if (c.estado === 'aldia' && ahora > c.fechaVencimiento) {
-                c.estado = 'atrasado';
-                modificado = true;
+    // 🚨 LA CORRECCIÓN CLAVE: AHORA LEE DE LA MISMA RUTA QUE EL ADMIN
+    function escucharNubeEnTiempoReal() {
+        db.collection("cooperativa").doc("directorio").onSnapshot((docSnap) => {
+            if (docSnap.exists) {
+                const data = docSnap.data();
+                clientes = data.listaAfiliados || [];
+                ingresosTotalesUSD = data.ingresosUSD || 0;
+                
+                const buscador = document.getElementById('buscador-clientes');
+                renderizarClientes(buscador ? buscador.value : '');
+            } else {
+                console.log("No existen datos aún en el documento de Firebase.");
             }
+        }, (error) => {
+            console.error("Error de conexión con Firebase:", error);
         });
-        if (modificado) localStorage.setItem('coop_clientes', JSON.stringify(clientes));
-    };
+        obtenerTasaBCV();
+    }
+
+    // GUARDAR LOS REPORTES DE PAGO EN LA MISMA RUTA
+    async function guardarNube() {
+        try {
+            await db.collection("cooperativa").doc("directorio").set({
+                listaAfiliados: clientes,
+                ingresosUSD: ingresosTotalesUSD
+            });
+        } catch (error) {
+            console.error("Error guardando reporte desde secretaría:", error);
+        }
+    }
 
     const renderizarClientes = (filtro = '') => {
-        verificarVencimientos();
-        const grid = document.getElementById('grid-secretaria');
+        const grid = document.getElementById('clientes-grid');
         if (!grid) return;
         grid.innerHTML = '';
 
-        const filtrados = clientes.filter(c => c.nombre.toLowerCase().includes(filtro.toLowerCase()) || c.cedula.toLowerCase().includes(filtro.toLowerCase()));
+        const ahora = Date.now();
+        clientes.forEach(c => {
+            if (c.estado === 'aldia' && ahora > c.fechaVencimiento) {
+                c.estado = 'atrasado';
+            }
+        });
+
+        const filtrados = clientes.filter(c => 
+            (c.nombre && c.nombre.toLowerCase().includes(filtro.toLowerCase())) || 
+            (c.cedula && c.cedula.toLowerCase().includes(filtro.toLowerCase())) ||
+            (c.contrato && c.contrato.toLowerCase().includes(filtro.toLowerCase()))
+        );
 
         if (filtrados.length === 0) {
-            grid.innerHTML = `<p style="text-align:center; color:#6B7280; grid-column:1/-1; padding:20px;">No hay afiliados registrados o que coincidan con la búsqueda.</p>`;
+            grid.innerHTML = `<p style="text-align:center; grid-column:1/-1; padding:20px; color:#6B7280; font-weight:600;">No hay afiliados registrados o que coincidan con la búsqueda.</p>`;
             return;
         }
 
         filtrados.forEach(c => {
             let badgeClass = c.estado === 'aldia' ? 'badge-aldia' : (c.estado === 'revision' ? 'badge-revision' : 'badge-vencida');
             let estadoTexto = c.estado === 'aldia' ? 'Al Día' : (c.estado === 'revision' ? 'En Revisión' : 'Atrasado');
-            let fechaF = new Date(c.fechaVencimiento).toLocaleDateString('es-ES');
+            let fechaF = c.fechaVencimiento ? new Date(c.fechaVencimiento).toLocaleDateString('es-ES') : 'N/A';
 
             let familiaresHTML = '';
             if (c.familiaresLista && c.familiaresLista.length > 0) {
@@ -63,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="cliente-card__header">
                         <div>
                             <h3 style="margin:0; font-size:1.1rem; color:#1F2937;">${c.nombre}</h3>
-                            <p style="margin:2px 0 0 0; font-size:0.8rem; color:#6B7280;">C.I: ${c.cedula} | Contrato: ${c.contrato}</p>
+                            <p style="margin:2px 0 0 0; font-size:0.8rem; color:#6B7280;">C.I: ${c.cedula} | Contrato: ${c.contrato || 'N/A'}</p>
                         </div>
                         <span class="badge ${badgeClass}">${estadoTexto}</span>
                     </div>
@@ -73,8 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="cliente-card__actions">
                         ${c.estado !== 'revision' 
-                            ? `<button class="btn-accion-cliente" onclick="abrirModalPago(${c.id}, '${c.nombre}')" style="background:#006412; color:white; border:none;"><i class="fa-solid fa-file-invoice-dollar"></i> Reportar Pago</button>` 
-                            : `<button class="btn-accion-cliente" disabled style="background:#E5E7EB; color:#9CA3AF; cursor:not-allowed;"><i class="fa-solid fa-clock"></i> Esperando Aprobación</button>`
+                            ? `<button class="btn-accion-cliente" onclick="abrirModalPago(${c.id}, '${(c.nombre || '').replace(/'/g, "\\'")}')" style="background:#006412; color:white; border:none; width: 100%; border-radius: 6px; padding: 10px 0; cursor: pointer; font-weight:600;"><i class="fa-solid fa-file-invoice-dollar"></i> Reportar Pago</button>` 
+                            : `<button class="btn-accion-cliente" disabled style="background:#E5E7EB; color:#9CA3AF; width: 100%; border-radius: 6px; padding: 10px 0; font-weight:600;"><i class="fa-solid fa-clock"></i> Esperando Aprobación</button>`
                         }
                     </div>
                 </div>
@@ -82,7 +124,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // CONTROLES E INTERACCIÓN INTELIGENTE DEL MODAL DE PAGO
     const modalPago = document.getElementById('modal-pago');
     const inputUsd = document.getElementById('pago-monto-usd');
     const inputBs = document.getElementById('pago-monto-bs');
@@ -90,51 +131,48 @@ document.addEventListener('DOMContentLoaded', () => {
     window.abrirModalPago = (id, nombre) => {
         document.getElementById('pago-cliente-id').value = id;
         document.getElementById('pago-cliente-nombre').textContent = nombre;
-        inputUsd.value = '';
-        inputBs.value = '';
-        modalPago.style.display = 'flex';
+        if(inputUsd) inputUsd.value = '';
+        if(inputBs) inputBs.value = '';
+        if(modalPago) modalPago.style.display = 'flex';
     };
 
-    // ESCUCHADORES CRUZADOS (INPUT EVENTS)
-    inputUsd.addEventListener('input', () => {
-        const valUsd = parseFloat(inputUsd.value);
-        if (!isNaN(valUsd) && TASA_BCV > 0) {
-            inputBs.value = (valUsd * TASA_BCV).toFixed(2);
-        } else {
-            inputBs.value = '';
-        }
+    if(inputUsd) {
+        inputUsd.addEventListener('input', () => {
+            const valUsd = parseFloat(inputUsd.value);
+            if (!isNaN(valUsd) && TASA_BCV > 0) inputBs.value = (valUsd * TASA_BCV).toFixed(2);
+            else inputBs.value = '';
+        });
+    }
+
+    if(inputBs) {
+        inputBs.addEventListener('input', () => {
+            const valBs = parseFloat(inputBs.value);
+            if (!isNaN(valBs) && TASA_BCV > 0) inputUsd.value = (valBs / TASA_BCV).toFixed(2);
+            else inputUsd.value = '';
+        });
+    }
+
+    document.getElementById('cerrar-modal-pago')?.addEventListener('click', () => { 
+        if(modalPago) modalPago.style.display = 'none'; 
     });
 
-    inputBs.addEventListener('input', () => {
-        const valBs = parseFloat(inputBs.value);
-        if (!isNaN(valBs) && TASA_BCV > 0) {
-            inputUsd.value = (valBs / TASA_BCV).toFixed(2);
-        } else {
-            inputUsd.value = '';
-        }
-    });
-
-    document.getElementById('cerrar-modal-pago').addEventListener('click', () => modalPago.style.display = 'none');
-
-    document.getElementById('form-pago').addEventListener('submit', (e) => {
+    document.getElementById('form-pago')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const id = parseInt(document.getElementById('pago-cliente-id').value);
-        
-        // Al final, lo que le interesa al sistema contable base son los Dólares ($)
         const montoFinalUSD = parseFloat(inputUsd.value) || 0;
 
         const index = clientes.findIndex(c => c.id === id);
         if (index > -1 && montoFinalUSD > 0) {
             clientes[index].estado = 'revision';
-            clientes[index].montoPendiente = montoFinalUSD; // Pasa el valor neto en USD a revisión
-            localStorage.setItem('coop_clientes', JSON.stringify(clientes));
-            renderizarClientes(document.getElementById('buscador-clientes').value);
-            modalPago.style.display = 'none';
+            clientes[index].montoPendiente = montoFinalUSD; 
+            if(modalPago) modalPago.style.display = 'none';
+            guardarNube();
         }
     });
 
-    document.getElementById('buscador-clientes').addEventListener('input', (e) => renderizarClientes(e.target.value));
+    document.getElementById('buscador-clientes')?.addEventListener('input', (e) => {
+        renderizarClientes(e.target.value);
+    });
 
-    // Ejecutar carga inicial de tasa oficial
-    obtenerTasaBCV();
+    escucharNubeEnTiempoReal();
 });

@@ -31,21 +31,20 @@
             </div>
         </div>
 
-        <div class="grupo-clientes">
-            <div class="grid-clientes" id="grid-secretaria"></div>
-        </div>
+        <div class="afiliados-grid" id="clientes-grid">
+            </div>
 
         <div class="modal-overlay" id="modal-pago" style="display: none;">
             <div class="modal-box">
                 <div class="modal-box__header">
-                    <div>
-                        <h3 style="color: #1F2937; margin: 0;">Actualizar Pago</h3>
-                        <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #6B7280;" id="pago-cliente-nombre">Cliente</p>
-                    </div>
-                    <button class="btn-cerrar-modal" id="cerrar-modal-pago" type="button"><i class="fa-solid fa-xmark"></i></button>
+                    <h3>Reportar Pago</h3>
+                    <button class="btn-cerrar-modal" id="cerrar-modal-pago">&times;</button>
                 </div>
-                <div class="modal-box__body" style="padding: 20px;">
-                    <form id="form-pago" style="display: flex; flex-direction: column; gap: 15px;">
+                <div class="modal-box__body">
+                    <p style="margin-bottom: 15px; font-size: 0.9rem; color: #4B5563;">
+                        Afiliado: <strong id="pago-cliente-nombre" style="color: #1F2937;">-</strong>
+                    </p>
+                    <form id="form-pago" style="display: flex; flex-direction: column; gap: 12px;">
                         <input type="hidden" id="pago-cliente-id">
                         
                         <div style="display: flex; gap: 10px;">
@@ -57,6 +56,7 @@
                                 <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Monto en Bolívares (Bs)</label>
                                 <input type="number" id="pago-monto-bs" step="0.01" placeholder="0.00" class="input-form" style="padding:10px;">
                             </div>
+                            
                         </div>
 
                         <div id="tasa-informativa-modal" style="font-size: 0.78rem; color: #006412; font-weight: 700; text-align: center; background: rgba(0, 100, 18, 0.05); padding: 6px; border-radius: 6px;">
@@ -68,8 +68,12 @@
                 </div>
             </div>
         </div>
+        
     </main>
 
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
     <script src="usuario.js"></script>
 </body>
 </html>
