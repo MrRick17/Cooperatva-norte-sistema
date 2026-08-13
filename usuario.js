@@ -17,21 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let clientes = [];
     let ingresosTotalesUSD = 0;
     let historialPagos = [];
-    let TASA_BCV = 0;
-
-    async function obtenerTasaBCV() {
-        const infoTasa = document.getElementById('tasa-informativa-modal');
-        try {
-            const respuesta = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
-            const datos = await respuesta.json();
-            TASA_BCV = datos.promedio || datos.venta || 0;
-            if (infoTasa && TASA_BCV > 0) {
-                infoTasa.textContent = `Tasa Oficial BCV: ${TASA_BCV.toFixed(2)} Bs/$`;
-            }
-        } catch (error) {
-            console.error("Error consultando tasa:", error);
-        }
-    }
 
     function escucharNubeEnTiempoReal() {
         db.collection("cooperativa").doc("directorio").onSnapshot((docSnap) => {
@@ -45,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderizarClientes(buscador ? buscador.value : '');
             }
         }, (error) => console.error("Error Firebase:", error));
-        obtenerTasaBCV();
     }
 
     async function guardarNube() {
@@ -90,7 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="cliente-card__header">
                         <div>
                             <h3 style="margin:0; font-size:1.1rem; color:#1F2937;">${c.nombre}</h3>
-                            <p style="margin:2px 0 0 0; font-size:0.8rem; color:#6B7280;">C.I: ${c.cedula} | Contrato: ${c.contrato || 'N/A'}</p>
+                            <p style="margin:2px 0 0 0; font-size:0.8rem; color:#6B7280;">N° Asociado: <strong>${c.numeroAsociado || 'N/A'}</strong> | C.I: ${c.cedula}</p>
+                            <p style="margin:2px 0 0 0; font-size:0.8rem; color:#6B7280;">Registro Funerario: <strong>${c.contrato || 'N/A'}</strong></p>
                         </div>
                         <span class="badge ${badgeClass}">${estadoTexto}</span>
                     </div>
@@ -111,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalPago = document.getElementById('modal-pago');
     const inputUsd = document.getElementById('pago-monto-usd');
     const inputBs = document.getElementById('pago-monto-bs');
+    const inputTasaManual = document.getElementById('pago-tasa-manual');
     const selectMetodo = document.getElementById('pago-metodo');
     const contenedorRef = document.getElementById('contenedor-referencia');
     const inputRef = document.getElementById('pago-referencia');
@@ -119,10 +105,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window.abrirModalPago = (id, nombre) => {
         document.getElementById('pago-cliente-id').value = id;
         document.getElementById('pago-cliente-nombre').textContent = nombre;
-        document.getElementById('pago-fecha').value = new Date().toISOString().split('T')[0];
+        
+        const hoy = new Date().toISOString().split('T')[0];
+        document.getElementById('pago-fecha-reporte').value = hoy; // Fecha ticket
+        document.getElementById('pago-fecha-real').value = hoy;    // Fecha pago por defecto
+        
         document.getElementById('pago-meses').value = 1;
         if(inputUsd) inputUsd.value = '';
         if(inputBs) inputBs.value = '';
+        if(inputTasaManual) inputTasaManual.value = '';
         if(inputRef) inputRef.value = '';
         
         actualizarCamposMetodo('pago_movil');
@@ -152,19 +143,36 @@ document.addEventListener('DOMContentLoaded', () => {
         selectMetodo.addEventListener('change', (e) => actualizarCamposMetodo(e.target.value));
     }
 
+    // Cálculos en tiempo real basados en la TASA MANUAL
+    const recalcularMontos = () => {
+        const tasa = parseFloat(inputTasaManual.value) || 0;
+        const valUsd = parseFloat(inputUsd.value);
+        if (tasa > 0 && !isNaN(valUsd)) {
+            inputBs.value = (valUsd * tasa).toFixed(2);
+        }
+    };
+
+    if(inputTasaManual) {
+        inputTasaManual.addEventListener('input', () => {
+            if (inputUsd.value) {
+                inputBs.value = (parseFloat(inputUsd.value) * parseFloat(inputTasaManual.value)).toFixed(2);
+            } else if (inputBs.value) {
+                inputUsd.value = (parseFloat(inputBs.value) / parseFloat(inputTasaManual.value)).toFixed(2);
+            }
+        });
+    }
+
     if(inputUsd) {
         inputUsd.addEventListener('input', () => {
-            const valUsd = parseFloat(inputUsd.value);
-            if (!isNaN(valUsd) && TASA_BCV > 0) inputBs.value = (valUsd * TASA_BCV).toFixed(2);
-            else inputBs.value = '';
+            const tasa = parseFloat(inputTasaManual.value) || 0;
+            if (tasa > 0) inputBs.value = (parseFloat(inputUsd.value) * tasa).toFixed(2);
         });
     }
 
     if(inputBs) {
         inputBs.addEventListener('input', () => {
-            const valBs = parseFloat(inputBs.value);
-            if (!isNaN(valBs) && TASA_BCV > 0) inputUsd.value = (valBs / TASA_BCV).toFixed(2);
-            else inputUsd.value = '';
+            const tasa = parseFloat(inputTasaManual.value) || 0;
+            if (tasa > 0) inputUsd.value = (parseFloat(inputBs.value) / tasa).toFixed(2);
         });
     }
 
@@ -176,20 +184,28 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const id = parseInt(document.getElementById('pago-cliente-id').value);
         const montoFinalUSD = parseFloat(inputUsd.value) || 0;
-        const fechaPago = document.getElementById('pago-fecha').value;
+        const tasaManualSeleccionada = parseFloat(inputTasaManual.value) || 0;
+        const fechaReporte = document.getElementById('pago-fecha-reporte').value;
+        const fechaReal = document.getElementById('pago-fecha-real').value;
         const meses = parseInt(document.getElementById('pago-meses').value) || 1;
         const metodo = selectMetodo.value;
         const referencia = metodo === 'efectivo' ? 'N/A' : inputRef.value.trim();
+
+        if (tasaManualSeleccionada <= 0) {
+            alert("Debes ingresar una Tasa del Día válida mayor a 0.");
+            return;
+        }
 
         const index = clientes.findIndex(c => c.id === id);
         if (index > -1 && montoFinalUSD > 0) {
             clientes[index].estado = 'revision';
             clientes[index].montoPendiente = montoFinalUSD;
-            clientes[index].fechaPagoReporte = fechaPago;
+            clientes[index].fechaPagoReporte = fechaReporte;
+            clientes[index].fechaPagoReal = fechaReal;
             clientes[index].mesesReportados = meses;
             clientes[index].metodoPagoReporte = metodo;
             clientes[index].referenciaReporte = referencia;
-            clientes[index].tasaReporte = TASA_BCV;
+            clientes[index].tasaReporte = tasaManualSeleccionada;
 
             if(modalPago) modalPago.style.display = 'none';
             guardarNube();

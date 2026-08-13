@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     
@@ -28,20 +27,20 @@
             <a href="#" class="nav-item" data-vista="contabilidad"><i class="fa-solid fa-calculator"></i> Contabilidad Mensual</a>
         </nav>
         <div class="sidebar__footer">
-            <a href="index.html" class="btn-logout"><i class="fa-solid fa-right-from-bracket cerrar__s"></i> Cerrar Sesión</a>
+            <a href="index.html" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
         </div>
     </aside>
 
     <main class="main-content">
         <section class="vista-seccion" id="vista-dashboard">
             <div class="header-titulos" style="margin-bottom: 25px;">
-                <h1>Resumen General</h1>
-                <p class="subtitle">Estado global de la Cooperativa Norte</p>
+                <h1>Resumen General (Mes Actual)</h1>
+                <p class="subtitle">Estado global de ingresos en este mes</p>
             </div>
             <div class="kpi-section">
                 <div class="kpi-card">
-                    <span class="kpi-card__title">Ingresos Totales (Global)</span>
-                    <div class="kpi-card__value" id="kpi-ingresos">$0.00</div>
+                    <span class="kpi-card__title">Ingresos Totales del Mes</span>
+                    <div class="kpi-card__value" id="kpi-ingresos">0.00 Bs</div>
                 </div>
                 <div class="kpi-card">
                     <span class="kpi-card__title">Pagos Por Revisar</span>
@@ -84,26 +83,46 @@
                 </div>
                 <div>
                     <select id="filtro-mes-contabilidad" class="input-form" style="padding: 10px; font-weight: bold; width: 220px;">
-                        </select>
+                    </select>
                 </div>
             </div>
 
-            <div class="kpi-section" style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+            <div class="kpi-section" style="margin-top: 20px; margin-bottom: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
                 <div class="kpi-card" style="border-left: 5px solid #8B5CF6;">
-                    <span class="kpi-card__title">Ingreso Total del Mes</span>
-                    <div class="kpi-card__value" id="kpi-cont-total" style="color: #1F2937; font-size: 1.6rem;">0.00 Bs</div>
+                    <span class="kpi-card__title">Ingreso Total Mes</span>
+                    <div class="kpi-card__value" id="kpi-cont-total" style="color: #1F2937; font-size: 1.4rem;">0.00 Bs</div>
                 </div>
                 <div class="kpi-card" style="border-left: 5px solid #10B981;">
                     <span class="kpi-card__title">Fondo Ahorros</span>
-                    <div class="kpi-card__value" id="kpi-cont-ahorros" style="color: #10B981; font-size: 1.6rem;">0.00 Bs</div>
+                    <div class="kpi-card__value" id="kpi-cont-ahorros" style="color: #10B981; font-size: 1.4rem;">0.00 Bs</div>
                 </div>
                 <div class="kpi-card" style="border-left: 5px solid #3B82F6;">
                     <span class="kpi-card__title">Aporte Funerario</span>
-                    <div class="kpi-card__value" id="kpi-cont-funerario" style="color: #3B82F6; font-size: 1.6rem;">0.00 Bs</div>
+                    <div class="kpi-card__value" id="kpi-cont-funerario" style="color: #3B82F6; font-size: 1.4rem;">0.00 Bs</div>
                 </div>
                 <div class="kpi-card" style="border-left: 5px solid #F59E0B;">
-                    <span class="kpi-card__title">Aporte Administrativo</span>
-                    <div class="kpi-card__value" id="kpi-cont-admin" style="color: #F59E0B; font-size: 1.6rem;">0.00 Bs</div>
+                    <span class="kpi-card__title">Aporte Admin</span>
+                    <div class="kpi-card__value" id="kpi-cont-admin" style="color: #F59E0B; font-size: 1.4rem;">0.00 Bs</div>
+                </div>
+                <div class="kpi-card" style="border-left: 5px solid #EF4444;">
+                    <span class="kpi-card__title">Prot. Social</span>
+                    <div class="kpi-card__value" id="kpi-cont-proteccion" style="color: #EF4444; font-size: 1.4rem;">0.00 Bs</div>
+                </div>
+            </div>
+
+            <!-- NUEVA SECCIÓN DE MÉTODOS DE PAGO -->
+            <div class="kpi-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+                <div class="kpi-card" style="border-left: 5px solid #64748B; padding: 15px 25px;">
+                    <span class="kpi-card__title" style="font-size: 0.75rem;">Pago Móvil</span>
+                    <div class="kpi-card__value" id="kpi-cont-pmovil" style="color: #1F2937; font-size: 1.2rem;">0.00 Bs</div>
+                </div>
+                <div class="kpi-card" style="border-left: 5px solid #64748B; padding: 15px 25px;">
+                    <span class="kpi-card__title" style="font-size: 0.75rem;">Transferencias</span>
+                    <div class="kpi-card__value" id="kpi-cont-transf" style="color: #1F2937; font-size: 1.2rem;">0.00 Bs</div>
+                </div>
+                <div class="kpi-card" style="border-left: 5px solid #64748B; padding: 15px 25px;">
+                    <span class="kpi-card__title" style="font-size: 0.75rem;">Efectivo</span>
+                    <div class="kpi-card__value" id="kpi-cont-efectivo" style="color: #1F2937; font-size: 1.2rem;">0.00 Bs</div>
                 </div>
             </div>
 
@@ -113,32 +132,34 @@
                     <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
                         <thead>
                             <tr style="border-bottom: 2px solid #E5E7EB; color: #4B5563;">
-                                <th style="padding: 10px;">Fecha</th>
+                                <th style="padding: 10px;">Fechas (Pago/Ticket)</th>
                                 <th style="padding: 10px;">Afiliado</th>
                                 <th style="padding: 10px;">Método / Ref</th>
                                 <th style="padding: 10px;">Funerario</th>
                                 <th style="padding: 10px;">Admin</th>
+                                <th style="padding: 10px;">Prot. Social</th>
                                 <th style="padding: 10px;">Ahorros</th>
-                                <th style="padding: 10px;">Total Pago</th>
+                                <th style="padding: 10px;">Total</th>
                             </tr>
                         </thead>
                         <tbody id="tabla-historial-contabilidad">
-                            </tbody>
+                        </tbody>
                     </table>
                 </div>
             </div>
         </section>
 
+        <!-- MODALES DE REGISTRO, DETALLES Y ELIMINAR QUEDAN IGUAL -->
         <div class="modal-overlay" id="modal-cliente" style="display: none; z-index: 2000;">
             <div class="modal-box" style="max-width: 550px;">
                 <div class="modal-box__header">
-                    <h3 style="color: #1F2937;"><i class="fa-solid fa-user-plus" style="color: #006412; margin-right: 8px;"></i>Registrar Afiliado</h3>
+                    <h3 id="titulo-modal-cliente" style="color: #1F2937;"><i class="fa-solid fa-user-plus" style="color: #006412; margin-right: 8px;"></i>Registrar Afiliado</h3>
                     <button class="btn-cerrar-modal" id="cerrar-modal-cliente">&times;</button>
                 </div>
                 <div class="modal-box__body">
-                    <p style="color: #6B7280; font-size: 0.9rem; margin-bottom: 20px;">Ingresa los datos del nuevo miembro. Todos los campos son requeridos.</p>
                     <form id="form-cliente" style="display: flex; flex-direction: column; gap: 15px;">
-                        
+                        <input type="hidden" id="cli-id-editar"> 
+
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                             <div>
                                 <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">Nombre Completo</label>
@@ -158,12 +179,22 @@
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                             <div>
-                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">N° de Contrato</label>
+                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">N° Asociado</label>
+                                <div style="position: relative;">
+                                    <i class="fa-solid fa-hashtag" style="position: absolute; left: 12px; top: 12px; color: #9CA3AF;"></i>
+                                    <input type="text" id="cli-asociado" placeholder="Ej: 1025" class="input-form" style="padding-left: 35px;" required>
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">Registro Funerario</label>
                                 <div style="position: relative;">
                                     <i class="fa-solid fa-file-contract" style="position: absolute; left: 12px; top: 12px; color: #9CA3AF;"></i>
                                     <input type="text" id="cli-contrato" placeholder="Ej: 001-A" class="input-form" style="padding-left: 35px;" required>
                                 </div>
                             </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                             <div>
                                 <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">Teléfono</label>
                                 <div style="position: relative;">
@@ -171,13 +202,22 @@
                                     <input type="text" id="cli-telefono" placeholder="Ej: 0414-1234567" class="input-form" style="padding-left: 35px;" required>
                                 </div>
                             </div>
+                            <div>
+                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">¿Incluye Cremación?</label>
+                                <select id="cli-cremacion" class="input-form" style="font-weight: bold; color: #006412;">
+                                    <option value="si">Sí (Aporte $7)</option>
+                                    <option value="no">No (Aporte $2)</option>
+                                </select>
+                            </div>
                         </div>
 
-                        <div>
-                            <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">Fecha de Vencimiento Inicial</label>
-                            <div style="position: relative;">
-                                <i class="fa-solid fa-calendar" style="position: absolute; left: 12px; top: 12px; color: #9CA3AF;"></i>
-                                <input type="date" id="cli-vence" class="input-form" style="padding-left: 35px;" required>
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+                            <div>
+                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">Fecha de Vencimiento Inicial</label>
+                                <div style="position: relative;">
+                                    <i class="fa-solid fa-calendar" style="position: absolute; left: 12px; top: 12px; color: #9CA3AF;"></i>
+                                    <input type="date" id="cli-vence" class="input-form" style="padding-left: 35px;" required>
+                                </div>
                             </div>
                         </div>
 
@@ -194,7 +234,7 @@
                     <button class="btn-cerrar-modal" id="cerrar-modal-detalles">&times;</button>
                 </div>
                 <div class="modal-box__body" id="contenido-detalles-modal" style="font-size: 0.9rem; line-height: 1.6;">
-                    </div>
+                </div>
             </div>
         </div>
 

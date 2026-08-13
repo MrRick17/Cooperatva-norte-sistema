@@ -14,7 +14,6 @@ const db = firebase.firestore();
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    // NAVEGACIÓN
     const navItems = document.querySelectorAll('.nav-item[data-vista]');
     const vistas = document.querySelectorAll('.vista-seccion');
 
@@ -38,19 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let clientes = [];
     let ingresosTotalesUSD = 0;
     let historialPagos = [];
-    let TASA_BCV = 0;
-
-    async function obtenerTasaBCV() {
-        try {
-            const respuesta = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
-            const datos = await respuesta.json();
-            TASA_BCV = datos.promedio || datos.venta || 0;
-        } catch (error) {
-            console.error("Error API BCV:", error);
-            TASA_BCV = 0;
-        }
-        actualizarPantalla();
-    }
 
     function escucharNubeEnTiempoReal() {
         db.collection("cooperativa").doc("directorio").onSnapshot((docSnap) => {
@@ -68,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         }, (error) => console.error("Error Firestore:", error));
-        obtenerTasaBCV();
     }
 
     async function guardarNube() {
@@ -91,17 +76,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const enRevision = clientes.filter(c => c.estado === 'revision');
         
+        // CALCULAR EL TOTAL EN BOLÍVARES EXCLUSIVAMENTE DEL MES ACTUAL PARA EL DASHBOARD
+        const hoyMes = new Date().toISOString().slice(0, 7); // Formato YYYY-MM
+        let ingresosTotalesBsMesActual = 0;
+
+        historialPagos.forEach(p => {
+            const fechaPago = p.fechaPagoReal || p.fechaPagoReporte;
+            if (fechaPago && fechaPago.startsWith(hoyMes)) {
+                const tasa = p.tasaManual || 1;
+                ingresosTotalesBsMesActual += (p.montoTotalUSD * tasa);
+            }
+        });
+        
         const kpiIngresos = document.getElementById('kpi-ingresos');
         if (kpiIngresos) {
-            if (TASA_BCV > 0) {
-                const ingresosBs = ingresosTotalesUSD * TASA_BCV;
-                kpiIngresos.innerHTML = `
-                    <div style="font-size: 1.8rem; font-weight: 800; color: #1F2937;">$${ingresosTotalesUSD.toFixed(2)}</div>
-                    <div style="font-size: 1.1rem; font-weight: 600; color: #006412; margin-top: 2px;">${ingresosBs.toFixed(2)} Bs</div>
-                `;
-            } else {
-                kpiIngresos.innerHTML = `<div style="font-size: 1.8rem; font-weight: 800; color: #1F2937;">$${ingresosTotalesUSD.toFixed(2)}</div>`;
-            }
+            kpiIngresos.innerHTML = `<div style="font-size: 1.8rem; font-weight: 800; color: #1F2937;">${ingresosTotalesBsMesActual.toFixed(2)} Bs</div>`;
         }
 
         const kpiRev = document.getElementById('kpi-revisiones');
@@ -129,11 +118,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="cliente-card card-revision">
                     <h3 style="margin:0; font-size:1.1rem;">${c.nombre}</h3>
                     <p style="margin:4px 0; font-size:0.85rem; color:#4B5563;">C.I: ${c.cedula} | Monto: <strong style="color:#006412;">$${c.montoPendiente}</strong></p>
-                    <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-calendar-day"></i> Fecha Pago: <strong>${c.fechaPagoReporte || 'N/A'}</strong></p>
+                    <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-calendar-check"></i> Pago Realizado: <strong>${c.fechaPagoReal || 'N/A'}</strong></p>
+                    <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-ticket"></i> Reportado el: <strong>${c.fechaPagoReporte || 'N/A'}</strong></p>
                     <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-receipt"></i> ${metodoTexto}: <strong>${c.referenciaReporte || 'N/A'}</strong></p>
                     
                     <div style="display:flex; gap:8px; margin-top:10px;">
-                        <button class="btn-accion-cliente" onclick="verDetallesPago(${c.id})" style="background:#3B82F6; color:white; border:none; flex:1;"><i class="fa-solid fa-eye"></i> Ver Detalles</button>
+                        <button class="btn-accion-cliente" onclick="verDetallesPago(${c.id})" style="background:#3B82F6; color:white; border:none; flex:1;"><i class="fa-solid fa-eye"></i> Detalles</button>
                         <button class="btn-accion-cliente" onclick="aprobarPago(${c.id})" style="background:#006412; color:white; border:none; flex:1;"><i class="fa-solid fa-check"></i> Aprobar</button>
                     </div>
                 </div>
@@ -147,20 +137,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const meses = c.mesesReportados || 1;
         const total = c.montoPendiente || 0;
-        const tasa = c.tasaReporte || TASA_BCV || 0;
+        const tasa = c.tasaReporte || 0;
 
         const funerarioUSD = 5 * meses;
         const adminUSD = 2 * meses;
-        const ahorrosUSD = Math.max(0, total - funerarioUSD - adminUSD);
+        const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
+        const ahorrosUSD = Math.max(0, total - funerarioUSD - adminUSD - proteccionUSD);
 
         const html = `
             <p><strong>Cliente:</strong> ${c.nombre}</p>
-            <p><strong>Fecha Reportada:</strong> ${c.fechaPagoReporte || 'N/A'}</p>
+            <p><strong>Fecha Pago Real:</strong> ${c.fechaPagoReal || 'N/A'}</p>
+            <p><strong>Fecha de Ticket:</strong> ${c.fechaPagoReporte || 'N/A'}</p>
             <p><strong>Meses Pagados:</strong> ${meses}</p>
-            <p><strong>Tasa Referencia:</strong> ${tasa.toFixed(2)} Bs/$</p>
+            <p><strong>Tasa Usada (Manual):</strong> ${tasa.toFixed(2)} Bs/$</p>
+            <p><strong>Incluye Cremación:</strong> ${c.tieneCremacion ? 'Sí' : 'No'}</p>
             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #E5E7EB;">
-            <p style="color:#3B82F6;"><strong>Aporte Funerario ($5/mes):</strong> ${(funerarioUSD * tasa).toFixed(2)} Bs</p>
-            <p style="color:#F59E0B;"><strong>Aporte Administrativo ($2/mes):</strong> ${(adminUSD * tasa).toFixed(2)} Bs</p>
+            <p style="color:#3B82F6;"><strong>Aporte Funerario:</strong> ${(funerarioUSD * tasa).toFixed(2)} Bs</p>
+            <p style="color:#F59E0B;"><strong>Aporte Admin:</strong> ${(adminUSD * tasa).toFixed(2)} Bs</p>
+            <p style="color:#EF4444;"><strong>Protección Social:</strong> ${(proteccionUSD * tasa).toFixed(2)} Bs</p>
             <p style="color:#10B981;"><strong>Ahorros Restante:</strong> ${(ahorrosUSD * tasa).toFixed(2)} Bs</p>
             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #E5E7EB;">
             <p style="font-size: 1.05rem; font-weight: bold; color: #006412;">Total Pago: ${(total * tasa).toFixed(2)} Bs</p>
@@ -180,11 +174,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const c = clientes[index];
             const montoReportado = parseFloat(c.montoPendiente || 0);
             const meses = parseInt(c.mesesReportados || 1);
-            const tasa = c.tasaReporte || TASA_BCV || 0;
+            const tasa = c.tasaReporte || 0;
 
             const funerarioUSD = 5 * meses;
             const adminUSD = 2 * meses;
-            const ahorrosUSD = Math.max(0, montoReportado - funerarioUSD - adminUSD);
+            const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
+            const ahorrosUSD = Math.max(0, montoReportado - funerarioUSD - adminUSD - proteccionUSD);
 
             ingresosTotalesUSD += montoReportado;
             c.montoAprobadoHistorial = (c.montoAprobadoHistorial || 0) + montoReportado;
@@ -199,15 +194,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 idPago: Date.now(),
                 clienteNombre: c.nombre,
                 cedula: c.cedula,
-                fechaPago: c.fechaPagoReporte || new Date().toISOString().split('T')[0],
+                fechaPagoReporte: c.fechaPagoReporte || new Date().toISOString().split('T')[0],
+                fechaPagoReal: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0],
                 meses: meses,
                 metodo: c.metodoPagoReporte || 'efectivo',
                 referencia: c.referenciaReporte || 'N/A',
                 montoTotalUSD: montoReportado,
                 funerarioUSD: funerarioUSD,
                 adminUSD: adminUSD,
+                proteccionUSD: proteccionUSD,
                 ahorrosUSD: ahorrosUSD,
-                tasaBCV: tasa
+                tasaManual: tasa
             });
 
             guardarNube();
@@ -224,7 +221,8 @@ document.addEventListener('DOMContentLoaded', () => {
         mesesSet.add(hoyMes);
 
         historialPagos.forEach(p => {
-            if (p.fechaPago) mesesSet.add(p.fechaPago.slice(0, 7));
+            if (p.fechaPagoReal) mesesSet.add(p.fechaPagoReal.slice(0, 7));
+            else if (p.fechaPagoReporte) mesesSet.add(p.fechaPagoReporte.slice(0, 7));
         });
 
         const mesesOrdenados = Array.from(mesesSet).sort().reverse();
@@ -241,37 +239,52 @@ document.addEventListener('DOMContentLoaded', () => {
         if (valorPrevio && mesesSet.has(valorPrevio)) selectMes.value = valorPrevio;
 
         const mesSeleccionado = selectMes.value || hoyMes;
-        const pagosFiltrados = historialPagos.filter(p => p.fechaPago && p.fechaPago.startsWith(mesSeleccionado));
+        const pagosFiltrados = historialPagos.filter(p => {
+            const f = p.fechaPagoReal || p.fechaPagoReporte;
+            return f && f.startsWith(mesSeleccionado);
+        });
 
-        let totFunerarioBs = 0, totAdminBs = 0, totAhorrosBs = 0, totGeneralBs = 0;
+        let totFunerarioBs = 0, totAdminBs = 0, totProteccionBs = 0, totAhorrosBs = 0, totGeneralBs = 0;
+        let totPMovilBs = 0, totTransfBs = 0, totEfectivoBs = 0; // NUEVAS VARIABLES
 
         tabla.innerHTML = '';
 
         if (pagosFiltrados.length === 0) {
-            tabla.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:15px; color:#6B7280;">No hay pagos registrados en este mes.</td></tr>`;
+            tabla.innerHTML = `<tr><td colspan=\"8\" style=\"text-align:center; padding:15px; color:#6B7280;\">No hay pagos registrados en este mes.</td></tr>`;
         } else {
             pagosFiltrados.forEach(p => {
-                const tasa = p.tasaBCV || TASA_BCV || 1; 
+                const tasa = p.tasaManual || 1; 
                 
                 const funBs = p.funerarioUSD * tasa;
                 const admBs = p.adminUSD * tasa;
+                const protBs = (p.proteccionUSD || 0) * tasa;
                 const ahoBs = p.ahorrosUSD * tasa;
                 const totalBs = p.montoTotalUSD * tasa;
 
                 totFunerarioBs += funBs;
                 totAdminBs += admBs;
+                totProteccionBs += protBs;
                 totAhorrosBs += ahoBs;
                 totGeneralBs += totalBs;
+
+                // LÓGICA DE SUMA POR MÉTODO DE PAGO
+                if (p.metodo === 'pago_movil') totPMovilBs += totalBs;
+                else if (p.metodo === 'transferencia') totTransfBs += totalBs;
+                else if (p.metodo === 'efectivo') totEfectivoBs += totalBs;
 
                 const metodoTexto = p.metodo === 'pago_movil' ? 'Pago Móvil' : (p.metodo === 'transferencia' ? 'Transferencia' : 'Efectivo');
 
                 tabla.innerHTML += `
                     <tr style="border-bottom: 1px solid #F3F4F6;">
-                        <td style="padding: 10px;">${p.fechaPago}</td>
+                        <td style="padding: 10px;">
+                            <div style="font-weight:bold; color:#10B981;">P: ${p.fechaPagoReal || '-'}</div>
+                            <div style="font-size:0.75rem; color:#6B7280;">T: ${p.fechaPagoReporte || '-'}</div>
+                        </td>
                         <td style="padding: 10px;"><strong>${p.clienteNombre}</strong><br><span style="font-size:0.75rem; color:#6B7280;">C.I: ${p.cedula}</span></td>
                         <td style="padding: 10px;">${metodoTexto}<br><span style="font-size:0.75rem; color:#6B7280;">Ref: ${p.referencia}</span></td>
                         <td style="padding: 10px; color:#3B82F6;">${funBs.toFixed(2)} Bs</td>
                         <td style="padding: 10px; color:#F59E0B;">${admBs.toFixed(2)} Bs</td>
+                        <td style="padding: 10px; color:#EF4444;">${protBs.toFixed(2)} Bs</td>
                         <td style="padding: 10px; color:#10B981;">${ahoBs.toFixed(2)} Bs</td>
                         <td style="padding: 10px; font-weight:bold; color:#006412;">${totalBs.toFixed(2)} Bs</td>
                     </tr>
@@ -279,10 +292,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // ACTUALIZACIÓN DE DOM DE FONDOS
         document.getElementById('kpi-cont-total').textContent = `${totGeneralBs.toFixed(2)} Bs`;
         document.getElementById('kpi-cont-funerario').textContent = `${totFunerarioBs.toFixed(2)} Bs`;
         document.getElementById('kpi-cont-admin').textContent = `${totAdminBs.toFixed(2)} Bs`;
+        document.getElementById('kpi-cont-proteccion').textContent = `${totProteccionBs.toFixed(2)} Bs`;
         document.getElementById('kpi-cont-ahorros').textContent = `${totAhorrosBs.toFixed(2)} Bs`;
+
+        // ACTUALIZACIÓN DE DOM DE MÉTODOS DE PAGO
+        document.getElementById('kpi-cont-pmovil').textContent = `${totPMovilBs.toFixed(2)} Bs`;
+        document.getElementById('kpi-cont-transf').textContent = `${totTransfBs.toFixed(2)} Bs`;
+        document.getElementById('kpi-cont-efectivo').textContent = `${totEfectivoBs.toFixed(2)} Bs`;
     };
 
     document.getElementById('filtro-mes-contabilidad')?.addEventListener('change', renderizarContabilidad);
@@ -305,11 +325,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                         <div>
                             <h3 style="margin:0; font-size:1.1rem; color:#1F2937;">${c.nombre}</h3>
-                            <p style="margin:2px 0 0 0; font-size:0.8rem; color:#6B7280;">C.I: ${c.cedula} | <i class="fa-solid fa-phone" style="font-size:0.75rem;"></i> ${c.telefono || 'N/A'}</p>
+                            <p style="margin:2px 0 0 0; font-size:0.8rem; color:#6B7280;">N° Asociado: <strong>${c.numeroAsociado || 'N/A'}</strong> | C.I: ${c.cedula}</p>
+                            <p style="margin:2px 0 0 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-phone" style="font-size:0.75rem;"></i> ${c.telefono || 'N/A'} | Registro Funerario: <strong>${c.contrato || 'N/A'}</strong></p>
                         </div>
                         <div style="display:flex; align-items:center; gap:8px;">
                             <span class="badge ${badgeClass}">${estadoTexto}</span>
-                            <button onclick="confirmarEliminar(${c.id})" style="background:none; border:none; color:#EF4444; cursor:pointer;"><i class="fa-solid fa-trash"></i></button>
+                            <button onclick="editarCliente(${c.id})" style="background:none; border:none; color:#3B82F6; cursor:pointer;" title="Editar"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button onclick="confirmarEliminar(${c.id})" style="background:none; border:none; color:#EF4444; cursor:pointer;" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
                         </div>
                     </div>
                     <div class="cliente-servicios" style="background:#F9FAFB; padding:10px; border-radius:8px; margin-top:12px;">
@@ -343,6 +365,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const formCliente = document.getElementById('form-cliente');
     document.getElementById('btn-agregar-cliente')?.addEventListener('click', () => {
         if(formCliente) formCliente.reset();
+        document.getElementById('cli-id-editar').value = '';
+        document.getElementById('titulo-modal-cliente').innerHTML = '<i class="fa-solid fa-user-plus" style="color: #006412; margin-right: 8px;"></i>Registrar Afiliado';
+        
         const inputFecha = document.getElementById('cli-vence');
         if (inputFecha) {
             const hoyMas28 = new Date(Date.now() + (28 * 24 * 60 * 60 * 1000));
@@ -354,6 +379,27 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cerrar-modal-cliente')?.addEventListener('click', () => {
         document.getElementById('modal-cliente').style.display = 'none';
     });
+
+    window.editarCliente = (id) => {
+        const c = clientes.find(item => item.id === id);
+        if(!c) return;
+
+        document.getElementById('cli-id-editar').value = c.id;
+        document.getElementById('cli-nombre').value = c.nombre || '';
+        document.getElementById('cli-cedula').value = c.cedula || '';
+        document.getElementById('cli-asociado').value = c.numeroAsociado || '';
+        document.getElementById('cli-contrato').value = c.contrato || '';
+        document.getElementById('cli-telefono').value = c.telefono || '';
+        document.getElementById('cli-cremacion').value = c.tieneCremacion ? 'si' : 'no';
+        
+        const f = new Date(c.fechaVencimiento);
+        const mesFormateado = String(f.getMonth() + 1).padStart(2, '0');
+        const diaFormateado = String(f.getDate()).padStart(2, '0');
+        document.getElementById('cli-vence').value = `${f.getFullYear()}-${mesFormateado}-${diaFormateado}`;
+        
+        document.getElementById('titulo-modal-cliente').innerHTML = '<i class="fa-solid fa-user-pen" style="color: #006412; margin-right: 8px;"></i>Editar Afiliado';
+        document.getElementById('modal-cliente').style.display = 'flex';
+    };
 
     if(formCliente) {
         formCliente.addEventListener('submit', (e) => {
@@ -367,34 +413,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 timestampVencimiento = Date.now() + (28 * 24 * 60 * 60 * 1000);
             }
 
-            clientes.push({
-                id: Date.now(),
-                nombre: document.getElementById('cli-nombre').value.trim(),
-                cedula: document.getElementById('cli-cedula').value.trim(),
-                contrato: document.getElementById('cli-contrato').value.trim(),
-                telefono: document.getElementById('cli-telefono').value.trim(),
-                fechaVencimiento: timestampVencimiento,
-                estado: 'aldia',
-                montoPendiente: 0
-            });
+            const editId = document.getElementById('cli-id-editar').value;
+
+            if (editId) {
+                const idx = clientes.findIndex(c => c.id == editId);
+                if (idx > -1) {
+                    clientes[idx].nombre = document.getElementById('cli-nombre').value.trim();
+                    clientes[idx].cedula = document.getElementById('cli-cedula').value.trim();
+                    clientes[idx].numeroAsociado = document.getElementById('cli-asociado').value.trim();
+                    clientes[idx].contrato = document.getElementById('cli-contrato').value.trim();
+                    clientes[idx].telefono = document.getElementById('cli-telefono').value.trim();
+                    clientes[idx].tieneCremacion = document.getElementById('cli-cremacion').value === 'si';
+                    clientes[idx].fechaVencimiento = timestampVencimiento;
+                }
+            } else {
+                clientes.push({
+                    id: Date.now(),
+                    nombre: document.getElementById('cli-nombre').value.trim(),
+                    cedula: document.getElementById('cli-cedula').value.trim(),
+                    numeroAsociado: document.getElementById('cli-asociado').value.trim(),
+                    contrato: document.getElementById('cli-contrato').value.trim(),
+                    telefono: document.getElementById('cli-telefono').value.trim(),
+                    tieneCremacion: document.getElementById('cli-cremacion').value === 'si',
+                    fechaVencimiento: timestampVencimiento,
+                    estado: 'aldia',
+                    montoPendiente: 0
+                });
+            }
 
             formCliente.reset();
+            document.getElementById('cli-id-editar').value = '';
             document.getElementById('modal-cliente').style.display = 'none';
+            document.getElementById('titulo-modal-cliente').innerHTML = '<i class="fa-solid fa-user-plus" style="color: #006412; margin-right: 8px;"></i>Registrar Afiliado';
             guardarNube();
         });
     }
 
-    // -----------------------------------------------------------
-    // EXCEL EXCLUSIVAMENTE CON LOS 4 DATOS SOLICITADOS
-    // -----------------------------------------------------------
     document.getElementById('btn-exportar-excel')?.addEventListener('click', () => {
         if (clientes.length === 0) return alert('No hay afiliados para exportar.');
         
         const datosExcel = clientes.map(c => ({
-            "N° Contrato": c.contrato || 'N/A',
+            "N° Asociado": c.numeroAsociado || 'N/A',
+            "Registro Funerario": c.contrato || 'N/A',
             "Nombre": c.nombre || 'N/A',
             "Cédula": c.cedula || 'N/A',
-            "Teléfono": c.telefono || 'N/A'
+            "Teléfono": c.telefono || 'N/A',
+            "Cremación": c.tieneCremacion ? 'Sí' : 'No'
         }));
         
         if (typeof XLSX !== 'undefined') {
