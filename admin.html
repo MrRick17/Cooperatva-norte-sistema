@@ -149,7 +149,7 @@
             </div>
         </section>
 
-        <!-- MODALES DE REGISTRO, DETALLES Y ELIMINAR QUEDAN IGUAL -->
+        <!-- MODALES DE REGISTRO, DETALLES Y ELIMINAR -->
         <div class="modal-overlay" id="modal-cliente" style="display: none; z-index: 2000;">
             <div class="modal-box" style="max-width: 550px;">
                 <div class="modal-box__header">
@@ -203,21 +203,28 @@
                                 </div>
                             </div>
                             <div>
-                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">¿Incluye Cremación?</label>
-                                <select id="cli-cremacion" class="input-form" style="font-weight: bold; color: #006412;">
-                                    <option value="si">Sí (Aporte $7)</option>
-                                    <option value="no">No (Aporte $2)</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
-                            <div>
                                 <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">Fecha de Vencimiento Inicial</label>
                                 <div style="position: relative;">
                                     <i class="fa-solid fa-calendar" style="position: absolute; left: 12px; top: 12px; color: #9CA3AF;"></i>
                                     <input type="date" id="cli-vence" class="input-form" style="padding-left: 35px;" required>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">¿Aporte Funerario?</label>
+                                <select id="cli-funerario" class="input-form" style="font-weight: bold; color: #006412;">
+                                    <option value="si">Sí (Aporte $5)</option>
+                                    <option value="no">No (Aporte $0)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:0.8rem; font-weight:bold; color:#374151; margin-bottom:5px; display:block;">¿Incluye Cremación?</label>
+                                <select id="cli-cremacion" class="input-form" style="font-weight: bold; color: #006412;">
+                                    <option value="si">Sí (Aporte $7)</option>
+                                    <option value="no">No (Aporte $2)</option>
+                                </select>
                             </div>
                         </div>
 

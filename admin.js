@@ -139,7 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const total = c.montoPendiente || 0;
         const tasa = c.tasaReporte || 0;
 
-        const funerarioUSD = 5 * meses;
+        const tieneFunerario = c.tieneFunerario !== false; // Compatibilidad con clientes antiguos
+        const funerarioUSD = tieneFunerario ? (5 * meses) : 0;
         const adminUSD = 2 * meses;
         const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
         const ahorrosUSD = Math.max(0, total - funerarioUSD - adminUSD - proteccionUSD);
@@ -150,7 +151,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <p><strong>Fecha de Ticket:</strong> ${c.fechaPagoReporte || 'N/A'}</p>
             <p><strong>Meses Pagados:</strong> ${meses}</p>
             <p><strong>Tasa Usada (Manual):</strong> ${tasa.toFixed(2)} Bs/$</p>
-            <p><strong>Incluye Cremación:</strong> ${c.tieneCremacion ? 'Sí' : 'No'}</p>
+            <p><strong>Aporte Funerario ($5):</strong> ${tieneFunerario ? 'Sí' : 'No'}</p>
+            <p><strong>Incluye Cremación ($7):</strong> ${c.tieneCremacion ? 'Sí' : 'No'}</p>
             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #E5E7EB;">
             <p style="color:#3B82F6;"><strong>Aporte Funerario:</strong> ${(funerarioUSD * tasa).toFixed(2)} Bs</p>
             <p style="color:#F59E0B;"><strong>Aporte Admin:</strong> ${(adminUSD * tasa).toFixed(2)} Bs</p>
@@ -176,7 +178,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const meses = parseInt(c.mesesReportados || 1);
             const tasa = c.tasaReporte || 0;
 
-            const funerarioUSD = 5 * meses;
+            const tieneFunerario = c.tieneFunerario !== false;
+            const funerarioUSD = tieneFunerario ? (5 * meses) : 0;
             const adminUSD = 2 * meses;
             const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
             const ahorrosUSD = Math.max(0, montoReportado - funerarioUSD - adminUSD - proteccionUSD);
@@ -366,6 +369,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-agregar-cliente')?.addEventListener('click', () => {
         if(formCliente) formCliente.reset();
         document.getElementById('cli-id-editar').value = '';
+        document.getElementById('cli-funerario').value = 'si';
+        document.getElementById('cli-cremacion').value = 'no';
         document.getElementById('titulo-modal-cliente').innerHTML = '<i class="fa-solid fa-user-plus" style="color: #006412; margin-right: 8px;"></i>Registrar Afiliado';
         
         const inputFecha = document.getElementById('cli-vence');
@@ -390,6 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('cli-asociado').value = c.numeroAsociado || '';
         document.getElementById('cli-contrato').value = c.contrato || '';
         document.getElementById('cli-telefono').value = c.telefono || '';
+        document.getElementById('cli-funerario').value = (c.tieneFunerario !== false) ? 'si' : 'no';
         document.getElementById('cli-cremacion').value = c.tieneCremacion ? 'si' : 'no';
         
         const f = new Date(c.fechaVencimiento);
@@ -423,6 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     clientes[idx].numeroAsociado = document.getElementById('cli-asociado').value.trim();
                     clientes[idx].contrato = document.getElementById('cli-contrato').value.trim();
                     clientes[idx].telefono = document.getElementById('cli-telefono').value.trim();
+                    clientes[idx].tieneFunerario = document.getElementById('cli-funerario').value === 'si';
                     clientes[idx].tieneCremacion = document.getElementById('cli-cremacion').value === 'si';
                     clientes[idx].fechaVencimiento = timestampVencimiento;
                 }
@@ -434,6 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     numeroAsociado: document.getElementById('cli-asociado').value.trim(),
                     contrato: document.getElementById('cli-contrato').value.trim(),
                     telefono: document.getElementById('cli-telefono').value.trim(),
+                    tieneFunerario: document.getElementById('cli-funerario').value === 'si',
                     tieneCremacion: document.getElementById('cli-cremacion').value === 'si',
                     fechaVencimiento: timestampVencimiento,
                     estado: 'aldia',
@@ -458,7 +466,9 @@ document.addEventListener('DOMContentLoaded', () => {
             "Nombre": c.nombre || 'N/A',
             "Cédula": c.cedula || 'N/A',
             "Teléfono": c.telefono || 'N/A',
-            "Cremación": c.tieneCremacion ? 'Sí' : 'No'
+            "Aporte Funerario": (c.tieneFunerario !== false) ? 'Sí' : 'No',
+            "Cremación": c.tieneCremacion ? 'Sí' : 'No',
+            "Vencimiento (Pago hasta)": c.fechaVencimiento ? new Date(c.fechaVencimiento).toLocaleDateString('es-ES') : 'N/A'
         }));
         
         if (typeof XLSX !== 'undefined') {
