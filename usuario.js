@@ -84,8 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="cliente-card__actions">
                         ${c.estado !== 'revision' 
-                            ? `<button class="btn-accion-cliente" onclick="abrirModalPago(${c.id}, '${(c.nombre || '').replace(/'/g, "\\'")}')" style="background:#006412; color:white; border:none; width: 100%; border-radius: 6px; padding: 10px 0; cursor: pointer; font-weight:600;"><i class="fa-solid fa-file-invoice-dollar"></i> Reportar Pago</button>` 
-                            : `<button class="btn-accion-cliente" disabled style="background:#E5E7EB; color:#9CA3AF; width: 100%; border-radius: 6px; padding: 10px 0; font-weight:600;"><i class="fa-solid fa-clock"></i> Esperando Aprobación</button>`
+                            ? `<button class="btn-accion-cliente" onclick="abrirModalPago(${c.id}, '${(c.nombre || '').replace(/'/g, "\\'")}')" style="background:#006412; color:white; border:none; border-radius: 6px; padding: 10px 0; cursor: pointer; font-weight:600;"><i class="fa-solid fa-file-invoice-dollar"></i> Reportar Pago</button>` 
+                            : `<button class="btn-accion-cliente" disabled style="background:#E5E7EB; color:#9CA3AF; border-radius: 6px; padding: 10px 0; font-weight:600;"><i class="fa-solid fa-clock"></i> Esperando Aprobación</button>`
                         }
                     </div>
                 </div>
@@ -93,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // === LÓGICA DE REPORTAR PAGO ===
     const modalPago = document.getElementById('modal-pago');
     const inputUsd = document.getElementById('pago-monto-usd');
     const inputBs = document.getElementById('pago-monto-bs');
@@ -144,14 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Cálculos en tiempo real basados en la TASA MANUAL
-    const recalcularMontos = () => {
-        const tasa = parseFloat(inputTasaManual.value) || 0;
-        const valUsd = parseFloat(inputUsd.value);
-        if (tasa > 0 && !isNaN(valUsd)) {
-            inputBs.value = (valUsd * tasa).toFixed(2);
-        }
-    };
-
     if(inputTasaManual) {
         inputTasaManual.addEventListener('input', () => {
             if (inputUsd.value) {
@@ -209,8 +202,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if(modalPago) modalPago.style.display = 'none';
             guardarNube();
+            alert("Pago enviado a revisión administrativa con éxito.");
         }
     });
+
+    // === LÓGICA DE AGREGAR AFILIADO (SECRETARÍA) ===
+    const modalClienteSec = document.getElementById('modal-cliente-sec');
+    const formClienteSec = document.getElementById('form-cliente-sec');
+
+    document.getElementById('btn-agregar-cliente-sec')?.addEventListener('click', () => {
+        if(formClienteSec) formClienteSec.reset();
+        document.getElementById('cli-funerario').value = 'si';
+        document.getElementById('cli-cremacion').value = 'no';
+        
+        const inputFecha = document.getElementById('cli-vence');
+        if (inputFecha) {
+            const hoyMas28 = new Date(Date.now() + (28 * 24 * 60 * 60 * 1000));
+            inputFecha.value = hoyMas28.toISOString().split('T')[0];
+        }
+        if(modalClienteSec) modalClienteSec.style.display = 'flex';
+    });
+
+    document.getElementById('cerrar-modal-cliente-sec')?.addEventListener('click', () => {
+        if(modalClienteSec) modalClienteSec.style.display = 'none';
+    });
+
+    if(formClienteSec) {
+        formClienteSec.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const fechaInput = document.getElementById('cli-vence').value;
+            let timestampVencimiento;
+            if (fechaInput) {
+                const [y, m, d] = fechaInput.split('-');
+                timestampVencimiento = new Date(y, m-1, d, 23, 59, 59).getTime();
+            } else {
+                timestampVencimiento = Date.now() + (28 * 24 * 60 * 60 * 1000);
+            }
+
+            clientes.push({
+                id: Date.now(),
+                nombre: document.getElementById('cli-nombre').value.trim(),
+                cedula: document.getElementById('cli-cedula').value.trim(),
+                numeroAsociado: document.getElementById('cli-asociado').value.trim(),
+                contrato: document.getElementById('cli-contrato').value.trim(),
+                telefono: document.getElementById('cli-telefono').value.trim(),
+                tieneFunerario: document.getElementById('cli-funerario').value === 'si',
+                tieneCremacion: document.getElementById('cli-cremacion').value === 'si',
+                fechaVencimiento: timestampVencimiento,
+                estado: 'aldia',
+                montoPendiente: 0
+            });
+
+            formClienteSec.reset();
+            if(modalClienteSec) modalClienteSec.style.display = 'none';
+            guardarNube();
+            alert("Afiliado registrado exitosamente.");
+        });
+    }
 
     document.getElementById('buscador-clientes')?.addEventListener('input', (e) => {
         renderizarClientes(e.target.value);

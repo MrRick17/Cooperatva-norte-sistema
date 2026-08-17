@@ -299,3 +299,56 @@ body {
     text-decoration: none;
     color: white;
 }
+
+/* ========================================= */
+/* MEJORAS RESPONSIVE PARA MÓVILES (GLOBAL)  */
+/* ========================================= */
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+/* Asegurar que los modales tengan scroll si la pantalla es muy pequeña */
+.modal-box {
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.acciones-top {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+@media (max-width: 600px) {
+    /* Fuerza a las columnas de los formularios a apilarse en vertical */
+    .form-row, 
+    div[style*="grid-template-columns: 1fr 1fr"] {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+    }
+
+    .acciones-top {
+        flex-direction: column;
+    }
+    
+    .acciones-top .search-box {
+        max-width: 100%;
+    }
+    
+    .acciones-top .btn-primario, 
+    .btn-accion-cliente {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .modal-box {
+        width: 95%;
+        padding: 20px 15px;
+    }
+}
