@@ -108,8 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('pago-cliente-nombre').textContent = nombre;
         
         const hoy = new Date().toISOString().split('T')[0];
-        document.getElementById('pago-fecha-reporte').value = hoy; // Fecha ticket
-        document.getElementById('pago-fecha-real').value = hoy;    // Fecha pago por defecto
+        document.getElementById('pago-fecha-reporte').value = hoy;
+        document.getElementById('pago-fecha-real').value = hoy;
         
         document.getElementById('pago-meses').value = 1;
         if(inputUsd) inputUsd.value = '';

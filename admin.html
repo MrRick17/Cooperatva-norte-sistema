@@ -59,9 +59,15 @@
                     <h1>Directorio de Afiliados</h1>
                     <p class="subtitle">Gestión de miembros y exportación de datos</p>
                 </div>
-                <div class="acciones-top" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button class="btn-primario" id="btn-agregar-cliente" style="background:#006412; color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-user-plus"></i> Nuevo Afiliado</button>
-                    <button class="btn-primario" id="btn-exportar-excel" style="background:#10B981; color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button>
+                <div class="acciones-top" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between; width: 100%;">
+                    <div class="search-box" style="flex: 1; min-width: 250px;">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="buscador-admin-clientes" placeholder="Buscar por nombre o cédula...">
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn-primario" id="btn-agregar-cliente" style="background:#006412; color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-user-plus"></i> Nuevo Afiliado</button>
+                        <button class="btn-primario" id="btn-exportar-excel" style="background:#10B981; color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button>
+                    </div>
                 </div>
             </div>
             <div class="afiliados-grid" id="grid-admin-clientes"></div>
@@ -110,7 +116,6 @@
                 </div>
             </div>
 
-            <!-- NUEVA SECCIÓN DE MÉTODOS DE PAGO -->
             <div class="kpi-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
                 <div class="kpi-card" style="border-left: 5px solid #64748B; padding: 15px 25px;">
                     <span class="kpi-card__title" style="font-size: 0.75rem;">Pago Móvil</span>
@@ -132,7 +137,7 @@
                     <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
                         <thead>
                             <tr style="border-bottom: 2px solid #E5E7EB; color: #4B5563;">
-                                <th style="padding: 10px;">Fechas (Pago/Ticket)</th>
+                                <th style="padding: 10px;">Fecha de Pago</th>
                                 <th style="padding: 10px;">Afiliado</th>
                                 <th style="padding: 10px;">Método / Ref</th>
                                 <th style="padding: 10px;">Funerario</th>

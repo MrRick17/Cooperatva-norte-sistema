@@ -99,7 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (kpiAfi) kpiAfi.textContent = clientes.length;
 
         renderizarRevisiones(enRevision);
-        renderizarDirectorio();
+        
+        const buscadorAdmin = document.getElementById('buscador-admin-clientes');
+        renderizarDirectorio(buscadorAdmin ? buscadorAdmin.value : '');
         renderizarContabilidad();
     };
 
@@ -119,7 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h3 style="margin:0; font-size:1.1rem;">${c.nombre}</h3>
                     <p style="margin:4px 0; font-size:0.85rem; color:#4B5563;">C.I: ${c.cedula} | Monto: <strong style="color:#006412;">$${c.montoPendiente}</strong></p>
                     <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-calendar-check"></i> Pago Realizado: <strong>${c.fechaPagoReal || 'N/A'}</strong></p>
-                    <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-ticket"></i> Reportado el: <strong>${c.fechaPagoReporte || 'N/A'}</strong></p>
                     <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-receipt"></i> ${metodoTexto}: <strong>${c.referenciaReporte || 'N/A'}</strong></p>
                     
                     <div style="display:flex; gap:8px; margin-top:10px;">
@@ -147,8 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const html = `
             <p><strong>Cliente:</strong> ${c.nombre}</p>
-            <p><strong>Fecha Pago Real:</strong> ${c.fechaPagoReal || 'N/A'}</p>
-            <p><strong>Fecha de Ticket:</strong> ${c.fechaPagoReporte || 'N/A'}</p>
+            <p><strong>Fecha del Pago:</strong> ${c.fechaPagoReal || 'N/A'}</p>
             <p><strong>Meses Pagados:</strong> ${meses}</p>
             <p><strong>Tasa Usada (Manual):</strong> ${tasa.toFixed(2)} Bs/$</p>
             <p><strong>Aporte Funerario ($5):</strong> ${tieneFunerario ? 'Sí' : 'No'}</p>
@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 idPago: Date.now(),
                 clienteNombre: c.nombre,
                 cedula: c.cedula,
-                fechaPagoReporte: c.fechaPagoReporte || new Date().toISOString().split('T')[0],
+                fechaPagoReporte: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0], // Mantenido para historial robusto interno
                 fechaPagoReal: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0],
                 meses: meses,
                 metodo: c.metodoPagoReporte || 'efectivo',
@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         let totFunerarioBs = 0, totAdminBs = 0, totProteccionBs = 0, totAhorrosBs = 0, totGeneralBs = 0;
-        let totPMovilBs = 0, totTransfBs = 0, totEfectivoBs = 0; // NUEVAS VARIABLES
+        let totPMovilBs = 0, totTransfBs = 0, totEfectivoBs = 0;
 
         tabla.innerHTML = '';
 
@@ -270,7 +270,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 totAhorrosBs += ahoBs;
                 totGeneralBs += totalBs;
 
-                // LÓGICA DE SUMA POR MÉTODO DE PAGO
                 if (p.metodo === 'pago_movil') totPMovilBs += totalBs;
                 else if (p.metodo === 'transferencia') totTransfBs += totalBs;
                 else if (p.metodo === 'efectivo') totEfectivoBs += totalBs;
@@ -279,10 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 tabla.innerHTML += `
                     <tr style="border-bottom: 1px solid #F3F4F6;">
-                        <td style="padding: 10px;">
-                            <div style="font-weight:bold; color:#10B981;">P: ${p.fechaPagoReal || '-'}</div>
-                            <div style="font-size:0.75rem; color:#6B7280;">T: ${p.fechaPagoReporte || '-'}</div>
-                        </td>
+                        <td style="padding: 10px; font-weight:bold; color:#10B981;">${p.fechaPagoReal || '-'}</td>
                         <td style="padding: 10px;"><strong>${p.clienteNombre}</strong><br><span style="font-size:0.75rem; color:#6B7280;">C.I: ${p.cedula}</span></td>
                         <td style="padding: 10px;">${metodoTexto}<br><span style="font-size:0.75rem; color:#6B7280;">Ref: ${p.referencia}</span></td>
                         <td style="padding: 10px; color:#3B82F6;">${funBs.toFixed(2)} Bs</td>
@@ -295,14 +291,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // ACTUALIZACIÓN DE DOM DE FONDOS
         document.getElementById('kpi-cont-total').textContent = `${totGeneralBs.toFixed(2)} Bs`;
         document.getElementById('kpi-cont-funerario').textContent = `${totFunerarioBs.toFixed(2)} Bs`;
         document.getElementById('kpi-cont-admin').textContent = `${totAdminBs.toFixed(2)} Bs`;
         document.getElementById('kpi-cont-proteccion').textContent = `${totProteccionBs.toFixed(2)} Bs`;
         document.getElementById('kpi-cont-ahorros').textContent = `${totAhorrosBs.toFixed(2)} Bs`;
 
-        // ACTUALIZACIÓN DE DOM DE MÉTODOS DE PAGO
         document.getElementById('kpi-cont-pmovil').textContent = `${totPMovilBs.toFixed(2)} Bs`;
         document.getElementById('kpi-cont-transf').textContent = `${totTransfBs.toFixed(2)} Bs`;
         document.getElementById('kpi-cont-efectivo').textContent = `${totEfectivoBs.toFixed(2)} Bs`;
@@ -310,16 +304,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('filtro-mes-contabilidad')?.addEventListener('change', renderizarContabilidad);
 
-    const renderizarDirectorio = () => {
+    const renderizarDirectorio = (filtro = '') => {
         const grid = document.getElementById('grid-admin-clientes');
         if(!grid) return;
         grid.innerHTML = '';
-        if(clientes.length === 0) {
+        
+        const filtrados = clientes.filter(c => 
+            (c.nombre && c.nombre.toLowerCase().includes(filtro.toLowerCase())) || 
+            (c.cedula && c.cedula.toLowerCase().includes(filtro.toLowerCase()))
+        );
+
+        if(filtrados.length === 0) {
             grid.innerHTML = '<p style="color:#6B7280; grid-column:1/-1;">No hay afiliados.</p>';
             return;
         }
 
-        clientes.forEach(c => {
+        filtrados.forEach(c => {
             let estadoTexto = c.estado === 'aldia' ? 'Al Día' : (c.estado === 'revision' ? 'En Revisión' : 'Atrasado');
             let badgeClass = c.estado === 'aldia' ? 'badge-aldia' : (c.estado === 'revision' ? 'badge-revision' : 'badge-vencida');
 
@@ -344,6 +344,10 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         });
     };
+
+    document.getElementById('buscador-admin-clientes')?.addEventListener('input', (e) => {
+        renderizarDirectorio(e.target.value);
+    });
 
     let clienteEliminarId = null;
     const modalEliminar = document.getElementById('modal-eliminar-afiliado');
