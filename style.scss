@@ -1,9 +1,16 @@
-$verde: #006412;
-$amarillo: #E9C46A;
-$verde-claro: #45a143;
+/* ========================================= */
+/* PALETA DE COLORES PREMIUM                 */
+/* ========================================= */
+$verde-principal: #064E3B; /* Verde británico profundo y elegante */
+$verde-oscuro: #022C22;    /* Verde casi negro para profundidad */
+$dorado: #D4AF37;          /* Oro clásico, no amarillo chillón */
+$dorado-oscuro: #B49020;   /* Oro oscurecido para hovers */
 $blanco: #FFFFFF;
-$fondo: #F3F4F6;
-$texto: #1F2937;
+$texto-principal: #111827; /* Negro suave / Carbón */
+$texto-secundario: #6B7280;/* Gris para textos menos importantes */
+
+/* Degradado de fondo (Blanco a Amarillo sutil) */
+$fondo-degradado: linear-gradient(135deg, $blanco 0%, rgba($dorado, 0.15) 100%);
 
 *, *::before, *::after {
     box-sizing: border-box !important;
@@ -11,20 +18,35 @@ $texto: #1F2937;
     padding: 0;
 }
 
+/* Aplicamos el degradado al body y aseguramos que ocupe toda la pantalla */
 body {
     font-family: "Montserrat", sans-serif;
-    background-color: $fondo;
-    color: $texto;
+    background: $fondo-degradado !important;
+    background-attachment: fixed !important;
+    background-size: cover !important;
+    color: $texto-principal;
     line-height: 1.5;
+    min-height: 100vh;
 }
 
-/* LOGIN */
+/* Forzamos transparencia en todos los contenedores estructurales para que el degradado se vea */
+.body-panel, 
+.admin-layout, 
+.main-content, 
+.admin-content, 
+.vista-seccion {
+    background: transparent !important;
+}
+
+/* ========================================= */
+/* LOGIN PREMIUM                             */
+/* ========================================= */
 .login-page {
     min-height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
-    background: radial-gradient(circle at center, $verde-claro 0%, darken($verde, 10%) 100%);
+    background: radial-gradient(circle at top, $verde-principal 0%, $verde-oscuro 100%) !important;
     padding: 20px 15px;
 }
 
@@ -32,9 +54,9 @@ body {
     width: 100%;
     max-width: 420px;
     background: $blanco;
-    border-radius: 18px;
-    padding: 35px 25px;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
+    border-radius: 20px; 
+    padding: 40px 30px;
+    box-shadow: 0 30px 60px rgba($verde-oscuro, 0.7); 
     display: flex;
     flex-direction: column;
     gap: 25px;
@@ -42,175 +64,264 @@ body {
     &__header {
         text-align: center;
         .login-card__icon {
-            width: 65px; height: 65px; background: rgba($verde, 0.1); color: $verde;
+            width: 70px; height: 70px; 
+            background: linear-gradient(135deg, rgba($dorado, 0.1) 0%, rgba($dorado, 0.25) 100%); 
+            color: $dorado-oscuro;
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            font-size: 1.8rem; margin: 0 auto 15px auto;
+            font-size: 2rem; margin: 0 auto 15px auto;
+            box-shadow: inset 0 2px 4px rgba($blanco, 0.5), 0 4px 15px rgba($dorado, 0.3);
         }
-        .login-card__title { font-size: 1.6rem; font-weight: 800; color: $verde; margin-bottom: 5px; }
-        .login-card__subtitle { font-size: 0.85rem; color: #6B7280; font-weight: 600; }
+        .login-card__title { font-size: 1.6rem; font-weight: 800; color: $verde-oscuro; margin-bottom: 5px; }
+        .login-card__subtitle { font-size: 0.85rem; color: $texto-secundario; font-weight: 600; }
     }
 
     &__logo {
-        width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin: 0 auto 15px auto;
+        width: 85px; height: 85px; border-radius: 50%; object-fit: cover; margin: 0 auto 15px auto;
+        border: 2px solid rgba($dorado, 0.3);
+        padding: 4px;
+        box-shadow: 0 8px 20px rgba($verde-principal, 0.4);
     }
 
     &__form {
-        display: flex; flex-direction: column; gap: 18px;
+        display: flex; flex-direction: column; gap: 20px;
         .form-group {
-            display: flex; flex-direction: column; gap: 6px;
-            .form-label { font-size: 0.82rem; font-weight: 700; color: $texto; }
+            display: flex; flex-direction: column; gap: 8px;
+            .form-label { font-size: 0.82rem; font-weight: 700; color: $texto-principal; }
             .input-wrapper {
                 position: relative; display: flex; align-items: center;
-                .input-icon { position: absolute; left: 14px; color: #6B7280; }
+                .input-icon { position: absolute; left: 14px; color: #9CA3AF; transition: color 0.3s; }
                 .form-input {
-                    width: 100%; padding: 12px 14px 12px 42px; border-radius: 10px;
-                    border: 1px solid #D1D5DB; background: #FAFAFA; outline: none;
-                    &:focus { border-color: $verde; background: $blanco; }
+                    width: 100%; padding: 14px 14px 14px 42px; border-radius: 12px;
+                    border: 1px solid #E5E7EB; background: rgba(255, 255, 255, 0.8); outline: none;
+                    transition: all 0.3s ease;
+                    &:focus { 
+                        border-color: $dorado; 
+                        background: $blanco; 
+                        box-shadow: 0 0 0 4px rgba($dorado, 0.15);
+                        & + .input-icon { color: $dorado-oscuro; }
+                    }
                 }
             }
         }
         .btn-login {
-            width: 100%; background: $verde; color: $blanco; border: none; padding: 14px;
-            border-radius: 10px; font-weight: 700; cursor: pointer; display: flex;
+            width: 100%; 
+            background: linear-gradient(135deg, $verde-principal 0%, $verde-oscuro 100%);
+            color: $blanco; border: none; padding: 15px;
+            border-radius: 12px; font-weight: 700; cursor: pointer; display: flex;
             align-items: center; justify-content: center; gap: 10px;
+            box-shadow: 0 8px 25px rgba($verde-principal, 0.6); 
+            transition: all 0.3s ease;
+            &:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba($verde-principal, 0.8); }
         }
     }
 }
 
-/* PANELES */
-.body-panel { background-color: $fondo; }
+/* ========================================= */
+/* ESTRUCTURA DE PANELES COMPARTIDA          */
+/* ========================================= */
 .mobile-header {
-    background: $verde; color: white; padding: 15px 5%; display: flex;
+    background: $verde-oscuro; color: white; padding: 15px 5%; display: flex;
     justify-content: space-between; align-items: center;
-    h2 { font-size: 1.2rem; span { color: $amarillo; } }
-}
-.main-content { padding: 25px 5%; max-width: 1200px; margin: 0 auto; }
-.top-section { margin-bottom: 25px; h1 { font-size: 1.5rem; } .subtitle { color: #6B7280; font-size: 0.9rem; } }
-.top-flex { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
-.search-box {
-    position: relative; width: 100%; max-width: 320px;
-    input { width: 100%; padding: 10px 10px 10px 35px; border-radius: 8px; border: 1px solid #ccc; outline: none; }
-    i { position: absolute; left: 10px; top: 12px; color: #888; }
+    border-bottom: 2px solid $dorado;
+    box-shadow: 0 8px 25px rgba($verde-oscuro, 0.5);
+    h2 { font-size: 1.2rem; span { color: $dorado; } }
 }
 
-/* BLOQUES KPIs EN ESCENARIO ESCRITORIO (AGRANDADOS) */
+.main-content {
+    flex: 1;
+    padding: 40px 5%;
+    height: 100vh; 
+    overflow-y: auto; 
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.top-section { margin-bottom: 40px; h1 { font-size: 1.6rem; color: $verde-oscuro; font-weight: 800; } .subtitle { color: $texto-secundario; font-size: 0.95rem; margin-top: 4px; } }
+.top-flex { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+
+.search-box {
+    position: relative; width: 100%; max-width: 320px;
+    input { 
+        width: 100%; padding: 12px 12px 12px 40px; border-radius: 10px; 
+        border: 1px solid rgba($dorado, 0.2); outline: none; background: rgba($blanco, 0.9);
+        box-shadow: 0 6px 15px rgba($verde-principal, 0.15); 
+        transition: all 0.3s;
+        &:focus { border-color: $dorado; background: $blanco; box-shadow: 0 0 0 4px rgba($dorado, 0.15), 0 8px 20px rgba($verde-principal, 0.2); }
+    }
+    i { position: absolute; left: 14px; top: 14px; color: #9CA3AF; }
+}
+
+/* ========================================= */
+/* TARJETAS KPI (METRICAS)                   */
+/* ========================================= */
 .kpi-section {
     display: grid; 
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
-    gap: 20px;
-    margin-bottom: 35px;
+    gap: 35px; 
+    margin-bottom: 50px;
 }
 
 .kpi-card {
-    background: white; 
-    padding: 24px 28px; // Más relleno interno
-    border-radius: 14px; 
-    border-left: 6px solid $verde;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
-    transition: transform 0.2s ease;
+    background: rgba($blanco, 0.95);
+    backdrop-filter: blur(4px);
+    padding: 28px 30px; 
+    border-radius: 16px; 
+    border: 1px solid rgba($dorado, 0.15);
+    border-left: 6px solid $dorado; 
+    box-shadow: 0 12px 35px rgba($verde-principal, 0.15); 
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
     
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 22px 50px rgba($verde-principal, 0.3); 
+    }
+
     &__title { 
-        font-size: 0.85rem; 
-        font-weight: 700; 
-        color: #6B7280; 
+        font-size: 0.8rem; 
+        font-weight: 800; 
+        color: $texto-secundario; 
         text-transform: uppercase; 
-        letter-spacing: 0.5px;
+        letter-spacing: 0.8px;
     }
     
     &__value { 
-        font-size: 2rem; // Tamaño de fuente agrandado
+        font-size: 2.2rem; 
         font-weight: 800; 
-        color: $texto; 
-        margin-top: 8px; 
+        color: $verde-oscuro; 
+        margin-top: 10px; 
+        letter-spacing: -0.5px;
     }
 }
 
-/* CARDS DE AFILIADOS */
-.grid-clientes {
+/* ========================================= */
+/* DIRECTORIO DE AFILIADOS                   */
+/* ========================================= */
+.grid-clientes, .afiliados-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
+    gap: 35px;
 }
 
 .cliente-card {
-    background: white; padding: 20px; border-radius: 12px; border-top: 4px solid $verde;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+    background: rgba($blanco, 0.95);
+    backdrop-filter: blur(4px);
+    padding: 25px; border-radius: 16px; 
+    border-top: 4px solid $verde-principal;
+    box-shadow: 0 10px 30px rgba($verde-principal, 0.15); 
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    &.card-ok { border-top-color: $verde; }
-    &.card-alerta { border-top-color: #EF4444; }
-    &.card-revision { border-top-color: $amarillo; }
-}
-.btn-accion-cliente, .btn-primario {
-    width: 100%; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer;
-    border: none; display: flex; align-items: center; justify-content: center; gap: 8px;
-}
-.badge { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
-.badge-aldia { background: rgba($verde, 0.1); color: $verde; }
-.badge-vencida { background: rgba(239, 68, 68, 0.1); color: #EF4444; }
-.badge-revision { background: rgba($amarillo, 0.2); color: darken($amarillo, 30%); }
+    transition: all 0.3s ease;
 
-/* ADMIN LAYOUT */
-/* ADMIN LAYOUT (MODIFICADO PARA SCROLL INDEPENDIENTE) */
+    &:hover { 
+        transform: translateY(-3px);
+        box-shadow: 0 18px 45px rgba($verde-principal, 0.25); 
+    }
+
+    &.card-ok { border-top-color: $verde-principal; }
+    &.card-alerta { border-top-color: #DC2626; box-shadow: 0 10px 30px rgba(220, 38, 38, 0.15); }
+    &.card-revision { border-top-color: $dorado; box-shadow: 0 10px 30px rgba($dorado, 0.2); }
+}
+
+/* ESTILOS DE BOTONES GLOBALES */
+.btn-accion-cliente, .btn-primario {
+    width: 100%; padding: 12px; border-radius: 10px; font-weight: 700; cursor: pointer;
+    border: none; display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: all 0.3s ease;
+}
+
+#btn-agregar-cliente, #btn-agregar-cliente-sec {
+    background: linear-gradient(135deg, $verde-principal 0%, $verde-oscuro 100%) !important;
+    box-shadow: 0 8px 20px rgba($verde-principal, 0.4);
+    &:hover { transform: translateY(-2px); box-shadow: 0 12px 25px rgba($verde-principal, 0.6); }
+}
+
+#btn-exportar-excel {
+    background: linear-gradient(135deg, $dorado-oscuro 0%, $dorado 100%) !important;
+    color: $verde-oscuro !important; 
+    box-shadow: 0 8px 20px rgba($dorado, 0.4);
+    &:hover { transform: translateY(-2px); box-shadow: 0 12px 25px rgba($dorado, 0.6); }
+}
+
+/* BADGES (ETIQUETAS) */
+.badge { padding: 6px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;}
+.badge-aldia { background: rgba($verde-principal, 0.1); color: $verde-principal; }
+.badge-vencida { background: rgba(220, 38, 38, 0.15); color: #DC2626; }
+.badge-revision { background: rgba($dorado, 0.25); color: $dorado-oscuro; }
+
+/* ========================================= */
+/* LAYOUT DE ADMINISTRADOR                   */
+/* ========================================= */
 .admin-layout { 
     display: flex; 
-    height: 100vh; /* Ocupa exactamente la pantalla */
-    overflow: hidden; /* Evita el scroll global */
+    height: 100vh;
+    overflow: hidden; 
 }
+
 .sidebar {
-    width: 260px; 
-    background: darken($verde, 4%); 
+    width: 280px; 
+    background: linear-gradient(180deg, $verde-oscuro 0%, #011812 100%);
     color: white; 
     display: flex;
     flex-direction: column; 
-    padding: 25px 20px; 
+    padding: 30px 25px; 
     flex-shrink: 0;
-    height: 100vh; /* Toma toda la altura */
-    overflow-y: auto; /* Scroll propio si es necesario */
+    height: 100vh; 
+    overflow-y: auto; 
+    border-right: 1px solid rgba($dorado, 0.15);
+    box-shadow: 8px 0 35px rgba($verde-oscuro, 0.4); 
+    z-index: 10;
     
-    &__brand { margin-bottom: 30px; h2 span { color: $amarillo; } p { font-size: 0.8rem; opacity: 0.8; } }
-    &__nav { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+    &__brand { 
+        margin-bottom: 40px; 
+        h2 { font-weight: 800; font-size: 1.6rem; }
+        h2 span { color: $dorado; } 
+        p { font-size: 0.8rem; color: #9CA3AF; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 5px;} 
+    }
+    
+    &__nav { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    
     .nav-item {
-        color: white; text-decoration: none; padding: 12px; border-radius: 8px;
-        font-size: 0.9rem; font-weight: bold; opacity: 0.8; transition: 0.2s;
-        &:hover, &.active { background: rgba(255, 255, 255, 0.1); opacity: 1; }
-        &--logout { margin-top: auto; color: #FFA4A4; }
+        color: rgba($blanco, 0.7); text-decoration: none; padding: 14px 16px; border-radius: 12px;
+        font-size: 0.95rem; font-weight: 600; transition: all 0.3s ease; display: flex; gap: 12px; align-items: center;
+        
+        &:hover { background: rgba($blanco, 0.08); color: $blanco; transform: translateX(5px); }
+        &.active { 
+            background: linear-gradient(90deg, rgba($dorado, 0.15) 0%, transparent 100%); 
+            color: $dorado; 
+            border-left: 3px solid $dorado;
+        }
+        &--logout { margin-top: auto; color: #FCA5A5; &:hover{ color: #EF4444; background: rgba(239, 68, 68, 0.1);} }
     }
 }
-.admin-content { 
-    flex: 1; 
-    padding: 35px; 
-    background: $fondo;
-}
 
-/* La clase principal donde va el contenido que hará scroll */
-.main-content {
-    flex: 1;
-    padding: 25px 5%;
-    background: $fondo;
-    height: 100vh; /* Toma toda la altura */
-    overflow-y: auto; /* Solo este bloque hace scroll */
-}
-
-/* MODALES */
+/* ========================================= */
+/* MODALES E INPUTS                          */
+/* ========================================= */
 .modal-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(3px);
+    background: rgba($verde-oscuro, 0.7); backdrop-filter: blur(6px);
     display: flex; justify-content: center; align-items: center; z-index: 2000;
 }
 .modal-box {
-    background: white; padding: 25px; border-radius: 14px; width: 92%; max-width: 420px;
-    &__header { display: flex; justify-content: space-between; margin-bottom: 15px; }
+    background: $blanco; padding: 30px; border-radius: 20px; width: 92%; max-width: 450px;
+    box-shadow: 0 40px 80px rgba($verde-oscuro, 0.7); 
+    border: 1px solid rgba($dorado, 0.2);
+    &__header { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center;}
+    h3 { font-size: 1.3rem; font-weight: 800; color: $verde-oscuro;}
 }
-.btn-cerrar-modal { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666; }
+.btn-cerrar-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #9CA3AF; transition: color 0.3s; &:hover{ color: #EF4444; } }
+
 .input-form {
-    width: 100% !important; padding: 10px; border-radius: 8px; border: 1px solid #D1D5DB;
-    outline: none; font-size: 0.88rem; background: #FAFAFA;
-    &:focus { border-color: $verde; background: $blanco; }
+    width: 100% !important; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba($dorado, 0.3);
+    outline: none; font-size: 0.9rem; background: rgba($blanco, 0.9); color: $texto-principal;
+    transition: all 0.3s ease;
+    &:focus { border-color: $dorado; background: $blanco; box-shadow: 0 0 0 4px rgba($dorado, 0.15); }
 }
 
-/* MEDIA QUERY MEJORADA PARA ESCRITORIO AMPLIO */
+/* ========================================= */
+/* RESPONSIVE DESIGN                         */
+/* ========================================= */
 @mixin escritorio-kpi {
     @media screen and (min-width: 1024px) {
         @content;
@@ -219,90 +330,37 @@ body {
 
 @include escritorio-kpi {
     .kpi-section {
-        grid-template-columns: repeat(3, 1fr); // Forzar tres columnas balanceadas en pantallas grandes
-        gap: 30px;
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 45px; 
     }
     .kpi-card {
-        padding: 35px 40px; // Bloques notablemente más grandes en PC
+        padding: 35px 40px; 
         &__value {
-            font-size: 2.3rem;
+            font-size: 2.5rem;
         }
+    }
+    .grid-clientes, .afiliados-grid {
+        gap: 40px; 
     }
 }
 
 @media (max-width: 768px) {
     .admin-layout { flex-direction: column; height: auto; overflow: visible; }
     .sidebar {
-        width: 100%; padding: 15px; flex-direction: row; flex-wrap: wrap; justify-content: space-between;
-        height: auto;
+        width: 100%; padding: 20px; flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center;
+        height: auto; border-right: none; border-bottom: 2px solid $dorado;
+        box-shadow: 0 6px 20px rgba($verde-oscuro, 0.5);
         &__brand { margin-bottom: 0; }
-        &__nav { flex-direction: row; width: 100%; justify-content: center; gap: 5px; margin-top: 10px; }
-        .nav-item { font-size: 0.78rem; padding: 8px; }
+        &__nav { flex-direction: row; width: 100%; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
+        .nav-item { font-size: 0.8rem; padding: 10px 12px; &.active { border-left: none; border-bottom: 3px solid $dorado; background: rgba($dorado, 0.1); } }
     }
-    .main-content { height: auto; overflow: visible; padding: 20px 15px; }
+    .main-content { height: auto; overflow: visible; padding: 25px 15px; }
 }
 
 .btn-logout{
     text-decoration: none;
     color: white;
 }
-
-/* MODALES */
-.modal-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(3px);
-    display: flex; justify-content: center; align-items: center; z-index: 2000;
-}
-.modal-box {
-    background: white; padding: 25px; border-radius: 14px; width: 92%; max-width: 420px;
-    &__header { display: flex; justify-content: space-between; margin-bottom: 15px; }
-}
-.btn-cerrar-modal { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666; }
-.input-form {
-    width: 100% !important; padding: 10px; border-radius: 8px; border: 1px solid #D1D5DB;
-    outline: none; font-size: 0.88rem; background: #FAFAFA;
-    &:focus { border-color: $verde; background: $blanco; }
-}
-
-/* MEDIA QUERY MEJORADA PARA ESCRITORIO AMPLIO */
-@mixin escritorio-kpi {
-    @media screen and (min-width: 1024px) {
-        @content;
-    }
-}
-
-@include escritorio-kpi {
-    .kpi-section {
-        grid-template-columns: repeat(3, 1fr); // Forzar tres columnas balanceadas en pantallas grandes
-        gap: 30px;
-    }
-    .kpi-card {
-        padding: 35px 40px; // Bloques notablemente más grandes en PC
-        &__value {
-            font-size: 2.3rem;
-        }
-    }
-}
-
-@media (max-width: 768px) {
-    .admin-layout { flex-direction: column; }
-    .sidebar {
-        width: 100%; padding: 15px; flex-direction: row; flex-wrap: wrap; justify-content: space-between;
-        &__brand { margin-bottom: 0; }
-        &__nav { flex-direction: row; width: 100%; justify-content: center; gap: 5px; margin-top: 10px; }
-        .nav-item { font-size: 0.78rem; padding: 8px; }
-    }
-    .admin-content { padding: 20px 15px; }
-}
-
-.btn-logout{
-    text-decoration: none;
-    color: white;
-}
-
-/* ========================================= */
-/* MEJORAS RESPONSIVE PARA MÓVILES (GLOBAL)  */
-/* ========================================= */
 
 .form-row {
     display: grid;
@@ -310,7 +368,6 @@ body {
     gap: 15px;
 }
 
-/* Asegurar que los modales tengan scroll si la pantalla es muy pequeña */
 .modal-box {
     max-height: 90vh;
     overflow-y: auto;
@@ -318,19 +375,18 @@ body {
 
 .acciones-top {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
     flex-wrap: wrap;
     width: 100%;
 }
 
 @media (max-width: 600px) {
-    /* Fuerza a las columnas de los formularios a apilarse en vertical */
     .form-row, 
     div[style*="grid-template-columns: 1fr 1fr"] {
         display: flex !important;
         flex-direction: column !important;
-        gap: 12px !important;
+        gap: 15px !important;
     }
 
     .acciones-top {
@@ -349,6 +405,6 @@ body {
     
     .modal-box {
         width: 95%;
-        padding: 20px 15px;
+        padding: 25px 20px;
     }
 }
