@@ -60,15 +60,32 @@ document.addEventListener('DOMContentLoaded', () => {
         grid.innerHTML = '';
 
         const hoy = new Date();
-// Calculamos el instante exacto del inicio del mes actual (Ej: 1 de Agosto a las 00:00:00)
-        const inicioDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime();
+const inicioDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime();
+let requiereGuardar = false;
 
-        clientes.forEach(c => {
-            // Solo pasa a atrasado si su vencimiento es ANTERIOR al inicio de este mes
-            if (c.estado === 'aldia' && c.fechaVencimiento < inicioDeMesActual) {
-             c.estado = 'atrasado';
+clientes.forEach(c => {
+    // No tocamos a los que están esperando aprobación de secretaría
+    if (c.estado !== 'revision') {
+        if (c.fechaVencimiento < inicioDeMesActual) {
+            // Si está vencido pero no dice "atrasado", lo corregimos
+            if (c.estado !== 'atrasado') {
+                c.estado = 'atrasado';
+                requiereGuardar = true;
             }
-        });
+        } else {
+            // Si NO está vencido pero estaba marcado como "atrasado" por el error viejo, lo reparamos
+            if (c.estado !== 'aldia') {
+                c.estado = 'aldia';
+                requiereGuardar = true;
+            }
+        }
+    }
+});
+
+// Si el sistema detectó y reparó errores, guardamos los cambios en Firebase automáticamente
+if (requiereGuardar && typeof guardarNube === 'function') {
+    guardarNube();
+}
 
         const filtrados = clientes.filter(c => 
             (c.nombre && c.nombre.toLowerCase().includes(filtro.toLowerCase())) || 
