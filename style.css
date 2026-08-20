@@ -518,6 +518,51 @@ body {
 }
 
 /* ========================================= */
+/* NOTIFICACIONES TOAST (PREMIUM ALERT)      */
+/* ========================================= */
+.toast-premium {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-left: 6px solid #064E3B;
+  padding: 18px 25px;
+  border-radius: 12px;
+  box-shadow: 0 15px 40px rgba(2, 44, 34, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  z-index: 9999;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+.toast-premium.mostrar {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+.toast-premium .toast-icono {
+  font-size: 2rem;
+  color: #064E3B;
+  text-shadow: 0 4px 10px rgba(6, 78, 59, 0.3);
+}
+.toast-premium .toast-texto h4 {
+  margin: 0;
+  color: #022C22;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+.toast-premium .toast-texto p {
+  margin: 4px 0 0 0;
+  color: #6B7280;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ========================================= */
 /* RESPONSIVE DESIGN                         */
 /* ========================================= */
 @media screen and (min-width: 1024px) {
@@ -624,5 +669,11 @@ body {
   .modal-box {
     width: 95%;
     padding: 25px 20px;
+  }
+  .toast-premium {
+    bottom: 20px;
+    right: 20px;
+    left: 20px;
+    justify-content: center;
   }
 }/*# sourceMappingURL=style.css.map */

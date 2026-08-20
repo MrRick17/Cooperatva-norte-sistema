@@ -320,6 +320,47 @@ body {
 }
 
 /* ========================================= */
+/* NOTIFICACIONES TOAST (PREMIUM ALERT)      */
+/* ========================================= */
+.toast-premium {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: rgba($blanco, 0.95);
+    backdrop-filter: blur(8px);
+    border-left: 6px solid $verde-principal;
+    padding: 18px 25px;
+    border-radius: 12px;
+    box-shadow: 0 15px 40px rgba($verde-oscuro, 0.25);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    z-index: 9999;
+    
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    
+    &.mostrar {
+        visibility: visible;
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .toast-icono { 
+        font-size: 2rem; 
+        color: $verde-principal; 
+        text-shadow: 0 4px 10px rgba($verde-principal, 0.3);
+    }
+    
+    .toast-texto {
+        h4 { margin: 0; color: $verde-oscuro; font-weight: 800; font-size: 1.1rem; }
+        p { margin: 4px 0 0 0; color: $texto-secundario; font-size: 0.85rem; font-weight: 600;}
+    }
+}
+
+/* ========================================= */
 /* RESPONSIVE DESIGN                         */
 /* ========================================= */
 @mixin escritorio-kpi {
@@ -406,5 +447,12 @@ body {
     .modal-box {
         width: 95%;
         padding: 25px 20px;
+    }
+    
+    .toast-premium {
+        bottom: 20px;
+        right: 20px;
+        left: 20px;
+        justify-content: center;
     }
 }

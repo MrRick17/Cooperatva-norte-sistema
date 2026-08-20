@@ -18,6 +18,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let ingresosTotalesUSD = 0;
     let historialPagos = [];
 
+    // === FUNCIÓN PARA MOSTRAR LA NOTIFICACIÓN ELEGANTE ===
+    window.mostrarToast = (titulo, mensaje) => {
+        const toast = document.getElementById('toast-notificacion');
+        if(!toast) return;
+        document.getElementById('toast-titulo').textContent = titulo;
+        document.getElementById('toast-mensaje').textContent = mensaje;
+        toast.classList.add('mostrar');
+        setTimeout(() => toast.classList.remove('mostrar'), 4000);
+    };
+
     function escucharNubeEnTiempoReal() {
         db.collection("cooperativa").doc("directorio").onSnapshot((docSnap) => {
             if (docSnap.exists) {
@@ -93,7 +103,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // === LÓGICA DE REPORTAR PAGO ===
     const modalPago = document.getElementById('modal-pago');
     const inputUsd = document.getElementById('pago-monto-usd');
     const inputBs = document.getElementById('pago-monto-bs');
@@ -144,13 +153,12 @@ document.addEventListener('DOMContentLoaded', () => {
         selectMetodo.addEventListener('change', (e) => actualizarCamposMetodo(e.target.value));
     }
 
-    // Cálculos en tiempo real basados en la TASA MANUAL
     if(inputTasaManual) {
         inputTasaManual.addEventListener('input', () => {
             if (inputUsd.value) {
-                inputBs.value = (parseFloat(inputUsd.value) * parseFloat(inputTasaManual.value)).toFixed(2);
+                inputBs.value = parseFloat((parseFloat(inputUsd.value) * parseFloat(inputTasaManual.value)).toFixed(6));
             } else if (inputBs.value) {
-                inputUsd.value = (parseFloat(inputBs.value) / parseFloat(inputTasaManual.value)).toFixed(2);
+                inputUsd.value = parseFloat((parseFloat(inputBs.value) / parseFloat(inputTasaManual.value)).toFixed(6));
             }
         });
     }
@@ -158,14 +166,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if(inputUsd) {
         inputUsd.addEventListener('input', () => {
             const tasa = parseFloat(inputTasaManual.value) || 0;
-            if (tasa > 0) inputBs.value = (parseFloat(inputUsd.value) * tasa).toFixed(2);
+            if (tasa > 0) inputBs.value = parseFloat((parseFloat(inputUsd.value) * tasa).toFixed(6));
         });
     }
 
     if(inputBs) {
         inputBs.addEventListener('input', () => {
             const tasa = parseFloat(inputTasaManual.value) || 0;
-            if (tasa > 0) inputUsd.value = (parseFloat(inputBs.value) / tasa).toFixed(2);
+            if (tasa > 0) inputUsd.value = parseFloat((parseFloat(inputBs.value) / tasa).toFixed(6));
         });
     }
 
@@ -185,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const referencia = metodo === 'efectivo' ? 'N/A' : inputRef.value.trim();
 
         if (tasaManualSeleccionada <= 0) {
-            alert("Debes ingresar una Tasa del Día válida mayor a 0.");
+            mostrarToast("Error", "Ingresa una tasa válida mayor a 0.");
             return;
         }
 
@@ -202,11 +210,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if(modalPago) modalPago.style.display = 'none';
             guardarNube();
-            alert("Pago enviado a revisión administrativa con éxito.");
+            mostrarToast("Pago Reportado", "Enviado a revisión administrativa con éxito.");
         }
     });
 
-    // === LÓGICA DE AGREGAR AFILIADO (SECRETARÍA) ===
     const modalClienteSec = document.getElementById('modal-cliente-sec');
     const formClienteSec = document.getElementById('form-cliente-sec');
 
@@ -256,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formClienteSec.reset();
             if(modalClienteSec) modalClienteSec.style.display = 'none';
             guardarNube();
-            alert("Afiliado registrado exitosamente.");
+            mostrarToast("Afiliado Creado", "Se guardó en el directorio exitosamente.");
         });
     }
 

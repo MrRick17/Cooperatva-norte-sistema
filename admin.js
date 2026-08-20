@@ -14,6 +14,16 @@ const db = firebase.firestore();
 
 document.addEventListener('DOMContentLoaded', () => {
     
+    // === FUNCIÓN PARA MOSTRAR LA NOTIFICACIÓN ELEGANTE ===
+    window.mostrarToast = (titulo, mensaje) => {
+        const toast = document.getElementById('toast-notificacion');
+        if(!toast) return;
+        document.getElementById('toast-titulo').textContent = titulo;
+        document.getElementById('toast-mensaje').textContent = mensaje;
+        toast.classList.add('mostrar');
+        setTimeout(() => toast.classList.remove('mostrar'), 4000);
+    };
+
     const navItems = document.querySelectorAll('.nav-item[data-vista]');
     const vistas = document.querySelectorAll('.vista-seccion');
 
@@ -76,8 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const enRevision = clientes.filter(c => c.estado === 'revision');
         
-        // CALCULAR EL TOTAL EN BOLÍVARES EXCLUSIVAMENTE DEL MES ACTUAL PARA EL DASHBOARD
-        const hoyMes = new Date().toISOString().slice(0, 7); // Formato YYYY-MM
+        const hoyMes = new Date().toISOString().slice(0, 7); 
         let ingresosTotalesBsMesActual = 0;
 
         historialPagos.forEach(p => {
@@ -140,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const total = c.montoPendiente || 0;
         const tasa = c.tasaReporte || 0;
 
-        const tieneFunerario = c.tieneFunerario !== false; // Compatibilidad con clientes antiguos
+        const tieneFunerario = c.tieneFunerario !== false; 
         const funerarioUSD = tieneFunerario ? (5 * meses) : 0;
         const adminUSD = 2 * meses;
         const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
@@ -197,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 idPago: Date.now(),
                 clienteNombre: c.nombre,
                 cedula: c.cedula,
-                fechaPagoReporte: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0], // Mantenido para historial robusto interno
+                fechaPagoReporte: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0],
                 fechaPagoReal: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0],
                 meses: meses,
                 metodo: c.metodoPagoReporte || 'efectivo',
@@ -211,6 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             guardarNube();
+            mostrarToast("Pago Aprobado", "Se registró en la contabilidad exitosamente.");
         }
     };
 
@@ -366,6 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clientes = clientes.filter(c => c.id !== clienteEliminarId);
             guardarNube();
             if(modalEliminar) modalEliminar.style.display = 'none';
+            mostrarToast("Afiliado Eliminado", "El registro ha sido borrado.");
         }
     });
 
@@ -458,11 +469,12 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('modal-cliente').style.display = 'none';
             document.getElementById('titulo-modal-cliente').innerHTML = '<i class="fa-solid fa-user-plus" style="color: #006412; margin-right: 8px;"></i>Registrar Afiliado';
             guardarNube();
+            mostrarToast("Afiliado Guardado", "El directorio ha sido actualizado.");
         });
     }
 
     document.getElementById('btn-exportar-excel')?.addEventListener('click', () => {
-        if (clientes.length === 0) return alert('No hay afiliados para exportar.');
+        if (clientes.length === 0) return mostrarToast("Atención", "No hay afiliados para exportar.");
         
         const datosExcel = clientes.map(c => ({
             "N° Asociado": c.numeroAsociado || 'N/A',
@@ -481,7 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
             XLSX.utils.book_append_sheet(libro, hoja, "Directorio");
             XLSX.writeFile(libro, "Reporte_Afiliados_Cooperativa.xlsx");
         } else {
-            alert("Hubo un error al cargar la librería de Excel. Revisa tu conexión a internet.");
+            mostrarToast("Error", "No se pudo cargar la librería Excel.");
         }
     });
 
