@@ -79,10 +79,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const actualizarPantalla = () => {
-        const ahora = Date.now();
-        clientes.forEach(c => {
-            if (c.estado === 'aldia' && ahora > c.fechaVencimiento) c.estado = 'atrasado';
-        });
+        const hoy = new Date();
+// Calculamos el instante exacto del inicio del mes actual (Ej: 1 de Agosto a las 00:00:00)
+const inicioDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime();
+
+clientes.forEach(c => {
+    // Solo pasa a atrasado si su vencimiento es ANTERIOR al inicio de este mes
+    if (c.estado === 'aldia' && c.fechaVencimiento < inicioDeMesActual) {
+        c.estado = 'atrasado';
+    }
+});
 
         const enRevision = clientes.filter(c => c.estado === 'revision');
         
@@ -199,7 +205,6 @@ document.addEventListener('DOMContentLoaded', () => {
             c.montoPendiente = 0;
             
             let baseTime = c.fechaVencimiento || Date.now();
-            if(baseTime < Date.now()) baseTime = Date.now();
             c.fechaVencimiento = baseTime + (meses * 28 * 24 * 60 * 60 * 1000);
 
             historialPagos.push({

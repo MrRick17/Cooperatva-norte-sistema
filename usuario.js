@@ -59,9 +59,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!grid) return;
         grid.innerHTML = '';
 
-        const ahora = Date.now();
+        const hoy = new Date();
+// Calculamos el instante exacto del inicio del mes actual (Ej: 1 de Agosto a las 00:00:00)
+        const inicioDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime();
+
         clientes.forEach(c => {
-            if (c.estado === 'aldia' && ahora > c.fechaVencimiento) c.estado = 'atrasado';
+            // Solo pasa a atrasado si su vencimiento es ANTERIOR al inicio de este mes
+            if (c.estado === 'aldia' && c.fechaVencimiento < inicioDeMesActual) {
+             c.estado = 'atrasado';
+            }
         });
 
         const filtrados = clientes.filter(c => 
