@@ -263,6 +263,40 @@
                 </div>
             </div>
         </div>
+
+        <!-- MODAL EDITAR PAGO EN HISTORIAL -->
+        <div class="modal-overlay" id="modal-editar-pago" style="display: none; z-index: 2500;">
+            <div class="modal-box" style="max-width: 400px;">
+                <div class="modal-box__header">
+                    <h3 style="color: #1F2937;"><i class="fa-solid fa-pen-to-square" style="color: #F59E0B; margin-right: 8px;"></i>Editar Pago</h3>
+                    <button class="btn-cerrar-modal" id="cerrar-modal-editar-pago">&times;</button>
+                </div>
+                <div class="modal-box__body">
+                    <form id="form-editar-pago" style="display: flex; flex-direction: column; gap: 15px;">
+                        <input type="hidden" id="edit-pago-id">
+                        
+                        <div>
+                            <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px; color:#374151;">Monto Total USD ($)</label>
+                            <input type="number" id="edit-pago-usd" step="any" class="input-form" required>
+                        </div>
+                        
+                        <div>
+                            <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px; color:#3B82F6;">Tasa Manual (Bs)</label>
+                            <input type="number" id="edit-pago-tasa" step="any" class="input-form" style="border:2px solid #3B82F6;" required>
+                        </div>
+                        
+                        <div>
+                            <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px; color:#374151;">Meses Pagados</label>
+                            <input type="number" id="edit-pago-meses" min="1" class="input-form" required>
+                        </div>
+                        
+                        <button type="submit" class="btn-primario" style="background:#F59E0B; color:white; border:none; padding:12px; border-radius:8px; cursor:pointer; font-weight:bold; margin-top: 10px;">
+                            <i class="fa-solid fa-calculator" style="margin-right: 5px;"></i> Recalcular y Guardar
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- NOTIFICACIÓN TOAST -->

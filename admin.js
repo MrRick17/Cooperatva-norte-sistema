@@ -317,7 +317,13 @@ if (requiereGuardar && typeof guardarNube === 'function') {
                         <td style="padding: 10px; color:#F59E0B;">${admBs.toFixed(2)} Bs</td>
                         <td style="padding: 10px; color:#EF4444;">${protBs.toFixed(2)} Bs</td>
                         <td style="padding: 10px; color:#10B981;">${ahoBs.toFixed(2)} Bs</td>
-                        <td style="padding: 10px; font-weight:bold; color:#006412;">${totalBs.toFixed(2)} Bs</td>
+                        <td style="padding: 10px; font-weight:bold; color:#006412; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                        ${totalBs.toFixed(2)} Bs
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="abrirModalEditarPago(${p.idPago})" style="background:none; border:none; color:#F59E0B; cursor:pointer; font-size:1.1rem;" title="Editar Pago"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button onclick="eliminarPagoHistorial(${p.idPago})" style="background:none; border:none; color:#EF4444; cursor:pointer; font-size:1.1rem;" title="Eliminar Pago"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </td>
                     </tr>
                 `;
             });
@@ -518,6 +524,79 @@ if (requiereGuardar && typeof guardarNube === 'function') {
             mostrarToast("Error", "No se pudo cargar la librería Excel.");
         }
     });
+
+    // === LÓGICA PARA EDITAR UN PAGO DEL HISTORIAL ===
+    window.abrirModalEditarPago = (idPago) => {
+        const pago = historialPagos.find(p => p.idPago === idPago);
+        if(!pago) return;
+
+        document.getElementById('edit-pago-id').value = pago.idPago;
+        document.getElementById('edit-pago-usd').value = pago.montoTotalUSD;
+        document.getElementById('edit-pago-tasa').value = pago.tasaManual || 1;
+        document.getElementById('edit-pago-meses').value = pago.meses || 1;
+
+        document.getElementById('modal-editar-pago').style.display = 'flex';
+    };
+
+    document.getElementById('cerrar-modal-editar-pago')?.addEventListener('click', () => {
+        document.getElementById('modal-editar-pago').style.display = 'none';
+    });
+
+    document.getElementById('form-editar-pago')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const idPago = parseInt(document.getElementById('edit-pago-id').value);
+        const nuevoUSD = parseFloat(document.getElementById('edit-pago-usd').value) || 0;
+        const nuevaTasa = parseFloat(document.getElementById('edit-pago-tasa').value) || 0;
+        const nuevosMeses = parseInt(document.getElementById('edit-pago-meses').value) || 1;
+
+        const pagoIndex = historialPagos.findIndex(p => p.idPago === idPago);
+        
+        if (pagoIndex > -1) {
+            const pago = historialPagos[pagoIndex];
+            
+            // 1. Buscamos al cliente original para saber qué planes tiene activos
+            const cliente = clientes.find(c => c.cedula === pago.cedula);
+            const tieneFunerario = cliente ? (cliente.tieneFunerario !== false) : true;
+            const tieneCremacion = cliente ? (cliente.tieneCremacion === true) : false;
+
+            // 2. Ejecutamos la matemática exacta de la cooperativa
+            const funerarioUSD = tieneFunerario ? (5 * nuevosMeses) : 0;
+            const adminUSD = 2 * nuevosMeses;
+            const proteccionUSD = (tieneCremacion ? 7 : 2) * nuevosMeses;
+            
+            // Los ahorros son todo lo que sobra después de los descuentos
+            const ahorrosUSD = Math.max(0, nuevoUSD - funerarioUSD - adminUSD - proteccionUSD);
+
+            // 3. Reemplazamos los valores en el historial
+            historialPagos[pagoIndex].montoTotalUSD = nuevoUSD;
+            historialPagos[pagoIndex].tasaManual = nuevaTasa;
+            historialPagos[pagoIndex].meses = nuevosMeses;
+            historialPagos[pagoIndex].funerarioUSD = funerarioUSD;
+            historialPagos[pagoIndex].adminUSD = adminUSD;
+            historialPagos[pagoIndex].proteccionUSD = proteccionUSD;
+            historialPagos[pagoIndex].ahorrosUSD = ahorrosUSD;
+
+            // 4. Guardamos y refrescamos la vista
+            guardarNube();
+            document.getElementById('modal-editar-pago').style.display = 'none';
+            mostrarToast("Pago Actualizado", "La contabilidad se ha recalculado.");
+        }
+    });
+
+    // === LÓGICA PARA ELIMINAR UN PAGO DEL HISTORIAL ===
+    window.eliminarPagoHistorial = (idPago) => {
+        // Mostramos una alerta de confirmación nativa para evitar accidentes
+        if (confirm("¿Estás seguro de que deseas eliminar este pago? \n\nEsta acción recalculará toda la contabilidad del mes y no se puede deshacer.")) {
+            
+            // Filtramos el arreglo para dejar por fuera el pago seleccionado
+            historialPagos = historialPagos.filter(p => p.idPago !== idPago);
+            
+            // Subimos el cambio a la nube (esto actualiza las gráficas automáticamente)
+            guardarNube();
+            mostrarToast("Pago Eliminado", "El registro fue borrado exitosamente.");
+        }
+    };
 
     escucharNubeEnTiempoReal();
 });
