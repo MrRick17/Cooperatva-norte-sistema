@@ -136,6 +136,8 @@ if (requiereGuardar && typeof guardarNube === 'function') {
     const labelRef = document.getElementById('label-referencia');
 
     window.abrirModalPago = (id, nombre) => {
+        const cliente = clientes.find(c => c.id === id);
+        
         document.getElementById('pago-cliente-id').value = id;
         document.getElementById('pago-cliente-nombre').textContent = nombre;
         
@@ -143,8 +145,25 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         document.getElementById('pago-fecha-reporte').value = hoy;
         document.getElementById('pago-fecha-real').value = hoy;
         
-        document.getElementById('pago-meses').value = 1;
-        if(inputUsd) inputUsd.value = '';
+        // Calculamos cuánto paga ESTE cliente en específico por 1 mes
+        // Calculamos cuánto paga ESTE cliente en específico por 1 mes
+        let cuotaMensual = 10; // Base estándar corregida a 10
+        if (cliente) {
+            const baseFunerario = (cliente.tieneFunerario !== false) ? 5 : 0;
+            const baseAdmin = 2;
+            const baseProteccion = cliente.tieneCremacion ? 7 : 2;
+            
+            // Sumamos los fondos fijos + $1 que se va al ahorro
+            cuotaMensual = baseFunerario + baseAdmin + baseProteccion + 1;
+        }
+
+        const inputMeses = document.getElementById('pago-meses');
+        if(inputMeses) {
+            inputMeses.value = 1;
+            inputMeses.setAttribute('data-cuota', cuotaMensual); // Guardamos su cuota base oculta
+        }
+        
+        if(inputUsd) inputUsd.value = cuotaMensual; // Auto-llenamos el monto inicial automáticamente
         if(inputBs) inputBs.value = '';
         if(inputTasaManual) inputTasaManual.value = '';
         if(inputRef) inputRef.value = '';
@@ -152,6 +171,22 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         actualizarCamposMetodo('pago_movil');
         if(modalPago) modalPago.style.display = 'flex';
     };
+
+    // NUEVO: Calculadora automática cuando la secretaria cambie los meses
+    document.getElementById('pago-meses')?.addEventListener('input', (e) => {
+        const meses = parseInt(e.target.value) || 1;
+        const cuota = parseFloat(e.target.getAttribute('data-cuota')) || 10;
+        
+        if (inputUsd) {
+            inputUsd.value = (cuota * meses).toFixed(2);
+            
+            // Si la secretaria ya había escrito la tasa, le calculamos los Bolívares de una vez
+            const tasa = parseFloat(inputTasaManual.value) || 0;
+            if (tasa > 0 && inputBs) {
+                inputBs.value = (parseFloat(inputUsd.value) * tasa).toFixed(2);
+            }
+        }
+    });
 
     function actualizarCamposMetodo(metodo) {
         if (metodo === 'efectivo') {

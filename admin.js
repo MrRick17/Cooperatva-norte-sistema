@@ -526,17 +526,38 @@ if (requiereGuardar && typeof guardarNube === 'function') {
     });
 
     // === LÓGICA PARA EDITAR UN PAGO DEL HISTORIAL ===
+    // === LÓGICA PARA EDITAR UN PAGO DEL HISTORIAL ===
     window.abrirModalEditarPago = (idPago) => {
         const pago = historialPagos.find(p => p.idPago === idPago);
         if(!pago) return;
 
+        // Buscamos al cliente para saber qué planes tiene y calcular su cuota base
+        const cliente = clientes.find(c => c.cedula === pago.cedula);
+        const tieneFunerario = cliente ? (cliente.tieneFunerario !== false) : true;
+        const tieneCremacion = cliente ? (cliente.tieneCremacion === true) : false;
+        
+        const cuotaMensual = (tieneFunerario ? 5 : 0) + 2 + (tieneCremacion ? 7 : 2);
+
         document.getElementById('edit-pago-id').value = pago.idPago;
         document.getElementById('edit-pago-usd').value = pago.montoTotalUSD;
         document.getElementById('edit-pago-tasa').value = pago.tasaManual || 1;
-        document.getElementById('edit-pago-meses').value = pago.meses || 1;
+        
+        const inputMeses = document.getElementById('edit-pago-meses');
+        inputMeses.value = pago.meses || 1;
+        inputMeses.setAttribute('data-cuota', cuotaMensual); // Guardamos la cuota base
 
         document.getElementById('modal-editar-pago').style.display = 'flex';
     };
+
+    // NUEVO: Esto hace que cuando tú cambies el número de meses, el Total USD se multiplique solo
+    document.getElementById('edit-pago-meses')?.addEventListener('input', (e) => {
+        const meses = parseInt(e.target.value) || 1;
+        const cuotaBase = parseFloat(e.target.getAttribute('data-cuota')) || 0;
+        
+        if (cuotaBase > 0) {
+            document.getElementById('edit-pago-usd').value = (cuotaBase * meses).toFixed(2);
+        }
+    });
 
     document.getElementById('cerrar-modal-editar-pago')?.addEventListener('click', () => {
         document.getElementById('modal-editar-pago').style.display = 'none';
