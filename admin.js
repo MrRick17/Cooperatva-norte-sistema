@@ -177,10 +177,12 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         const adminUSD = 2 * meses;
         const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
         const ahorrosUSD = Math.max(0, total - funerarioUSD - adminUSD - proteccionUSD);
+        
 
         const html = `
             <p><strong>Cliente:</strong> ${c.nombre}</p>
             <p><strong>Fecha del Pago:</strong> ${c.fechaPagoReal || 'N/A'}</p>
+            <p><strong>N° Factura:</strong> ${c.numeroFactura || 'N/A'}</p>
             <p><strong>Meses Pagados:</strong> ${meses}</p>
             <p><strong>Tasa Usada (Manual):</strong> ${tasa.toFixed(2)} Bs/$</p>
             <p><strong>Aporte Funerario ($5):</strong> ${tieneFunerario ? 'Sí' : 'No'}</p>
@@ -228,6 +230,7 @@ if (requiereGuardar && typeof guardarNube === 'function') {
                 idPago: Date.now(),
                 clienteNombre: c.nombre,
                 cedula: c.cedula,
+                numeroFactura: c.numeroFactura || 'S/N',
                 fechaPagoReporte: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0],
                 fechaPagoReal: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0],
                 meses: meses,
@@ -276,7 +279,15 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         const mesSeleccionado = selectMes.value || hoyMes;
         const pagosFiltrados = historialPagos.filter(p => {
             const f = p.fechaPagoReal || p.fechaPagoReporte;
+            
             return f && f.startsWith(mesSeleccionado);
+        });
+
+        // ORDENAR POR NÚMERO DE FACTURA PROGRESIVO
+        pagosFiltrados.sort((a, b) => {
+            const numA = parseInt(a.numeroFactura) || 0;
+            const numB = parseInt(b.numeroFactura) || 0;
+            return numA - numB;
         });
 
         let totFunerarioBs = 0, totAdminBs = 0, totProteccionBs = 0, totAhorrosBs = 0, totGeneralBs = 0;
@@ -285,7 +296,7 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         tabla.innerHTML = '';
 
         if (pagosFiltrados.length === 0) {
-            tabla.innerHTML = `<tr><td colspan=\"8\" style=\"text-align:center; padding:15px; color:#6B7280;\">No hay pagos registrados en este mes.</td></tr>`;
+            tabla.innerHTML = `<tr><td colspan=\"9\" style=\"text-align:center; padding:15px; color:#6B7280;\">No hay pagos registrados en este mes.</td></tr>`;
         } else {
             pagosFiltrados.forEach(p => {
                 const tasa = p.tasaManual || 1; 
@@ -311,6 +322,7 @@ if (requiereGuardar && typeof guardarNube === 'function') {
                 tabla.innerHTML += `
                     <tr style="border-bottom: 1px solid #F3F4F6;">
                         <td style="padding: 10px; font-weight:bold; color:#10B981;">${p.fechaPagoReal || '-'}</td>
+                        <td style="padding: 10px; font-weight:bold; color:#1F2937;">#${p.numeroFactura || 'S/N'}</td>
                         <td style="padding: 10px;"><strong>${p.clienteNombre}</strong><br><span style="font-size:0.75rem; color:#6B7280;">C.I: ${p.cedula}</span></td>
                         <td style="padding: 10px;">${metodoTexto}<br><span style="font-size:0.75rem; color:#6B7280;">Ref: ${p.referencia}</span></td>
                         <td style="padding: 10px; color:#3B82F6;">${funBs.toFixed(2)} Bs</td>
@@ -541,6 +553,7 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         document.getElementById('edit-pago-id').value = pago.idPago;
         document.getElementById('edit-pago-usd').value = pago.montoTotalUSD;
         document.getElementById('edit-pago-tasa').value = pago.tasaManual || 1;
+        document.getElementById('edit-pago-factura').value = pago.numeroFactura || '';
         
         const inputMeses = document.getElementById('edit-pago-meses');
         inputMeses.value = pago.meses || 1;
@@ -570,6 +583,7 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         const nuevoUSD = parseFloat(document.getElementById('edit-pago-usd').value) || 0;
         const nuevaTasa = parseFloat(document.getElementById('edit-pago-tasa').value) || 0;
         const nuevosMeses = parseInt(document.getElementById('edit-pago-meses').value) || 1;
+        const nuevaFactura = document.getElementById('edit-pago-factura').value.trim();
 
         const pagoIndex = historialPagos.findIndex(p => p.idPago === idPago);
         
@@ -597,6 +611,7 @@ if (requiereGuardar && typeof guardarNube === 'function') {
             historialPagos[pagoIndex].adminUSD = adminUSD;
             historialPagos[pagoIndex].proteccionUSD = proteccionUSD;
             historialPagos[pagoIndex].ahorrosUSD = ahorrosUSD;
+            historialPagos[pagoIndex].numeroFactura = nuevaFactura;
 
             // 4. Guardamos y refrescamos la vista
             guardarNube();

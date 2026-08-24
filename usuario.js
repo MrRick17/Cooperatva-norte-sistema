@@ -167,6 +167,7 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         if(inputBs) inputBs.value = '';
         if(inputTasaManual) inputTasaManual.value = '';
         if(inputRef) inputRef.value = '';
+        if(document.getElementById('pago-factura')) document.getElementById('pago-factura').value = '';
         
         actualizarCamposMetodo('pago_movil');
         if(modalPago) modalPago.style.display = 'flex';
@@ -249,6 +250,7 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         const meses = parseInt(document.getElementById('pago-meses').value) || 1;
         const metodo = selectMetodo.value;
         const referencia = metodo === 'efectivo' ? 'N/A' : inputRef.value.trim();
+        const numeroFactura = document.getElementById('pago-factura').value.trim();
 
         if (tasaManualSeleccionada <= 0) {
             mostrarToast("Error", "Ingresa una tasa válida mayor a 0.");
@@ -265,6 +267,7 @@ if (requiereGuardar && typeof guardarNube === 'function') {
             clientes[index].metodoPagoReporte = metodo;
             clientes[index].referenciaReporte = referencia;
             clientes[index].tasaReporte = tasaManualSeleccionada;
+            clientes[index].numeroFactura = numeroFactura; // <-- NUEVO
 
             if(modalPago) modalPago.style.display = 'none';
             guardarNube();
