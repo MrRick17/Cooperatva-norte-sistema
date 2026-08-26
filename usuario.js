@@ -146,10 +146,11 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         document.getElementById('pago-fecha-real').value = hoy;
         
         // Calculamos cuánto paga ESTE cliente en específico por 1 mes
-        // Calculamos cuánto paga ESTE cliente en específico por 1 mes
-        let cuotaMensual = 10; // Base estándar corregida a 10
+        let cuotaMensual = 10; // Base estándar
         if (cliente) {
-            const baseFunerario = (cliente.tieneFunerario !== false) ? 5 : 0;
+            // REGLA ESPECIAL PARA ASOCIADO 1974
+            const montoFunerario = (cliente.numeroAsociado == '1974') ? 10 : 5;
+            const baseFunerario = (cliente.tieneFunerario !== false) ? montoFunerario : 0;
             const baseAdmin = 2;
             const baseProteccion = cliente.tieneCremacion ? 7 : 2;
             

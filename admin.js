@@ -173,7 +173,11 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         const tasa = c.tasaReporte || 0;
 
         const tieneFunerario = c.tieneFunerario !== false; 
-        const funerarioUSD = tieneFunerario ? (5 * meses) : 0;
+        
+        // REGLA ESPECIAL PARA ASOCIADO 1974
+        const montoFunerario = (c.numeroAsociado == '1974') ? 10 : 5;
+        
+        const funerarioUSD = tieneFunerario ? (montoFunerario * meses) : 0;
         const adminUSD = 2 * meses;
         const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
         const ahorrosUSD = Math.max(0, total - funerarioUSD - adminUSD - proteccionUSD);
@@ -185,7 +189,7 @@ if (requiereGuardar && typeof guardarNube === 'function') {
             <p><strong>N° Factura:</strong> ${c.numeroFactura || 'N/A'}</p>
             <p><strong>Meses Pagados:</strong> ${meses}</p>
             <p><strong>Tasa Usada (Manual):</strong> ${tasa.toFixed(2)} Bs/$</p>
-            <p><strong>Aporte Funerario ($5):</strong> ${tieneFunerario ? 'Sí' : 'No'}</p>
+            <p><strong>Aporte Funerario ($${montoFunerario}):</strong> ${tieneFunerario ? 'Sí' : 'No'}</p>
             <p><strong>Incluye Cremación ($7):</strong> ${c.tieneCremacion ? 'Sí' : 'No'}</p>
             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #E5E7EB;">
             <p style="color:#3B82F6;"><strong>Aporte Funerario:</strong> ${(funerarioUSD * tasa).toFixed(2)} Bs</p>
@@ -213,7 +217,11 @@ if (requiereGuardar && typeof guardarNube === 'function') {
             const tasa = c.tasaReporte || 0;
 
             const tieneFunerario = c.tieneFunerario !== false;
-            const funerarioUSD = tieneFunerario ? (5 * meses) : 0;
+            
+            // REGLA ESPECIAL PARA ASOCIADO 1974
+            const montoFunerario = (c.numeroAsociado == '1974') ? 10 : 5;
+            
+            const funerarioUSD = tieneFunerario ? (montoFunerario * meses) : 0;
             const adminUSD = 2 * meses;
             const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
             const ahorrosUSD = Math.max(0, montoReportado - funerarioUSD - adminUSD - proteccionUSD);
@@ -538,7 +546,6 @@ if (requiereGuardar && typeof guardarNube === 'function') {
     });
 
     // === LÓGICA PARA EDITAR UN PAGO DEL HISTORIAL ===
-    // === LÓGICA PARA EDITAR UN PAGO DEL HISTORIAL ===
     window.abrirModalEditarPago = (idPago) => {
         const pago = historialPagos.find(p => p.idPago === idPago);
         if(!pago) return;
@@ -548,7 +555,10 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         const tieneFunerario = cliente ? (cliente.tieneFunerario !== false) : true;
         const tieneCremacion = cliente ? (cliente.tieneCremacion === true) : false;
         
-        const cuotaMensual = (tieneFunerario ? 5 : 0) + 2 + (tieneCremacion ? 7 : 2);
+        // REGLA ESPECIAL PARA ASOCIADO 1974
+        const montoFunerario = (cliente && cliente.numeroAsociado == '1974') ? 10 : 5;
+        
+        const cuotaMensual = (tieneFunerario ? montoFunerario : 0) + 2 + (tieneCremacion ? 7 : 2) + 1;
 
         document.getElementById('edit-pago-id').value = pago.idPago;
         document.getElementById('edit-pago-usd').value = pago.montoTotalUSD;
@@ -596,7 +606,10 @@ if (requiereGuardar && typeof guardarNube === 'function') {
             const tieneCremacion = cliente ? (cliente.tieneCremacion === true) : false;
 
             // 2. Ejecutamos la matemática exacta de la cooperativa
-            const funerarioUSD = tieneFunerario ? (5 * nuevosMeses) : 0;
+            // REGLA ESPECIAL PARA ASOCIADO 1974
+            const montoFunerario = (cliente && cliente.numeroAsociado == '1974') ? 10 : 5;
+            
+            const funerarioUSD = tieneFunerario ? (montoFunerario * nuevosMeses) : 0;
             const adminUSD = 2 * nuevosMeses;
             const proteccionUSD = (tieneCremacion ? 7 : 2) * nuevosMeses;
             
