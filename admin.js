@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (destino === 'contabilidad') {
                 renderizarContabilidad();
+            } else if (destino === 'caja') {
+                renderizarCajaYBancos();
             }
         });
     });
@@ -47,6 +49,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let clientes = [];
     let ingresosTotalesUSD = 0;
     let historialPagos = [];
+    
+    // === NUEVAS VARIABLES PARA CAJA Y BANCOS ===
+    let efectivoAnteriorBs = 0;
+    let historialDepositos = [];
 
     function escucharNubeEnTiempoReal() {
         db.collection("cooperativa").doc("directorio").onSnapshot((docSnap) => {
@@ -55,12 +61,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 clientes = data.listaAfiliados || [];
                 ingresosTotalesUSD = data.ingresosUSD || 0;
                 historialPagos = data.historialPagos || [];
+                
+                // Cargar datos de Caja y Bancos
+                efectivoAnteriorBs = data.efectivoAnteriorBs || 0;
+                historialDepositos = data.historialDepositos || [];
+                
                 actualizarPantalla();
             } else {
                 db.collection("cooperativa").doc("directorio").set({
                     listaAfiliados: [],
                     ingresosUSD: 0,
-                    historialPagos: []
+                    historialPagos: [],
+                    efectivoAnteriorBs: 0,
+                    historialDepositos: []
                 });
             }
         }, (error) => console.error("Error Firestore:", error));
@@ -71,7 +84,9 @@ document.addEventListener('DOMContentLoaded', () => {
             await db.collection("cooperativa").doc("directorio").set({
                 listaAfiliados: clientes,
                 ingresosUSD: ingresosTotalesUSD,
-                historialPagos: historialPagos
+                historialPagos: historialPagos,
+                efectivoAnteriorBs: efectivoAnteriorBs,
+                historialDepositos: historialDepositos
             });
         } catch (error) {
             console.error("Error al guardar en Firebase:", error);
@@ -80,32 +95,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const actualizarPantalla = () => {
         const hoy = new Date();
-const inicioDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime();
-let requiereGuardar = false;
+        const inicioDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime();
+        let requiereGuardar = false;
 
-clientes.forEach(c => {
-    // No tocamos a los que están esperando aprobación de secretaría
-    if (c.estado !== 'revision') {
-        if (c.fechaVencimiento < inicioDeMesActual) {
-            // Si está vencido pero no dice "atrasado", lo corregimos
-            if (c.estado !== 'atrasado') {
-                c.estado = 'atrasado';
-                requiereGuardar = true;
+        clientes.forEach(c => {
+            if (c.estado !== 'revision') {
+                if (c.fechaVencimiento < inicioDeMesActual) {
+                    if (c.estado !== 'atrasado') {
+                        c.estado = 'atrasado';
+                        requiereGuardar = true;
+                    }
+                } else {
+                    if (c.estado !== 'aldia') {
+                        c.estado = 'aldia';
+                        requiereGuardar = true;
+                    }
+                }
             }
-        } else {
-            // Si NO está vencido pero estaba marcado como "atrasado" por el error viejo, lo reparamos
-            if (c.estado !== 'aldia') {
-                c.estado = 'aldia';
-                requiereGuardar = true;
-            }
+        });
+
+        if (requiereGuardar && typeof guardarNube === 'function') {
+            guardarNube();
         }
-    }
-});
-
-// Si el sistema detectó y reparó errores, guardamos los cambios en Firebase automáticamente
-if (requiereGuardar && typeof guardarNube === 'function') {
-    guardarNube();
-}
 
         const enRevision = clientes.filter(c => c.estado === 'revision');
         
@@ -135,7 +146,14 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         const buscadorAdmin = document.getElementById('buscador-admin-clientes');
         renderizarDirectorio(buscadorAdmin ? buscadorAdmin.value : '');
         renderizarContabilidad();
+        
+        // Llamada automática para refrescar la caja
+        renderizarCajaYBancos();
     };
+
+    // =========================================================
+    // === LÓGICA DE REVISIONES Y DIRECTORIO (SE MANTIENE)   ===
+    // =========================================================
 
     const renderizarRevisiones = (lista) => {
         const grid = document.getElementById('grid-admin-revisiones');
@@ -287,11 +305,9 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         const mesSeleccionado = selectMes.value || hoyMes;
         const pagosFiltrados = historialPagos.filter(p => {
             const f = p.fechaPagoReal || p.fechaPagoReporte;
-            
             return f && f.startsWith(mesSeleccionado);
         });
 
-        // ORDENAR POR NÚMERO DE FACTURA PROGRESIVO
         pagosFiltrados.sort((a, b) => {
             const numA = parseInt(a.numeroFactura) || 0;
             const numB = parseInt(b.numeroFactura) || 0;
@@ -545,19 +561,15 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         }
     });
 
-    // === LÓGICA PARA EDITAR UN PAGO DEL HISTORIAL ===
     window.abrirModalEditarPago = (idPago) => {
         const pago = historialPagos.find(p => p.idPago === idPago);
         if(!pago) return;
 
-        // Buscamos al cliente para saber qué planes tiene y calcular su cuota base
         const cliente = clientes.find(c => c.cedula === pago.cedula);
         const tieneFunerario = cliente ? (cliente.tieneFunerario !== false) : true;
         const tieneCremacion = cliente ? (cliente.tieneCremacion === true) : false;
         
-        // REGLA ESPECIAL PARA ASOCIADO 1974
         const montoFunerario = (cliente && cliente.numeroAsociado == '1974') ? 10 : 5;
-        
         const cuotaMensual = (tieneFunerario ? montoFunerario : 0) + 2 + (tieneCremacion ? 7 : 2) + 1;
 
         document.getElementById('edit-pago-id').value = pago.idPago;
@@ -567,19 +579,15 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         
         const inputMeses = document.getElementById('edit-pago-meses');
         inputMeses.value = pago.meses || 1;
-        inputMeses.setAttribute('data-cuota', cuotaMensual); // Guardamos la cuota base
+        inputMeses.setAttribute('data-cuota', cuotaMensual);
 
         document.getElementById('modal-editar-pago').style.display = 'flex';
     };
 
-    // NUEVO: Esto hace que cuando tú cambies el número de meses, el Total USD se multiplique solo
     document.getElementById('edit-pago-meses')?.addEventListener('input', (e) => {
         const meses = parseInt(e.target.value) || 1;
         const cuotaBase = parseFloat(e.target.getAttribute('data-cuota')) || 0;
-        
-        if (cuotaBase > 0) {
-            document.getElementById('edit-pago-usd').value = (cuotaBase * meses).toFixed(2);
-        }
+        if (cuotaBase > 0) document.getElementById('edit-pago-usd').value = (cuotaBase * meses).toFixed(2);
     });
 
     document.getElementById('cerrar-modal-editar-pago')?.addEventListener('click', () => {
@@ -599,24 +607,17 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         
         if (pagoIndex > -1) {
             const pago = historialPagos[pagoIndex];
-            
-            // 1. Buscamos al cliente original para saber qué planes tiene activos
             const cliente = clientes.find(c => c.cedula === pago.cedula);
+            
             const tieneFunerario = cliente ? (cliente.tieneFunerario !== false) : true;
             const tieneCremacion = cliente ? (cliente.tieneCremacion === true) : false;
-
-            // 2. Ejecutamos la matemática exacta de la cooperativa
-            // REGLA ESPECIAL PARA ASOCIADO 1974
             const montoFunerario = (cliente && cliente.numeroAsociado == '1974') ? 10 : 5;
             
             const funerarioUSD = tieneFunerario ? (montoFunerario * nuevosMeses) : 0;
             const adminUSD = 2 * nuevosMeses;
             const proteccionUSD = (tieneCremacion ? 7 : 2) * nuevosMeses;
-            
-            // Los ahorros son todo lo que sobra después de los descuentos
             const ahorrosUSD = Math.max(0, nuevoUSD - funerarioUSD - adminUSD - proteccionUSD);
 
-            // 3. Reemplazamos los valores en el historial
             historialPagos[pagoIndex].montoTotalUSD = nuevoUSD;
             historialPagos[pagoIndex].tasaManual = nuevaTasa;
             historialPagos[pagoIndex].meses = nuevosMeses;
@@ -626,24 +627,147 @@ if (requiereGuardar && typeof guardarNube === 'function') {
             historialPagos[pagoIndex].ahorrosUSD = ahorrosUSD;
             historialPagos[pagoIndex].numeroFactura = nuevaFactura;
 
-            // 4. Guardamos y refrescamos la vista
             guardarNube();
             document.getElementById('modal-editar-pago').style.display = 'none';
             mostrarToast("Pago Actualizado", "La contabilidad se ha recalculado.");
         }
     });
 
-    // === LÓGICA PARA ELIMINAR UN PAGO DEL HISTORIAL ===
     window.eliminarPagoHistorial = (idPago) => {
-        // Mostramos una alerta de confirmación nativa para evitar accidentes
         if (confirm("¿Estás seguro de que deseas eliminar este pago? \n\nEsta acción recalculará toda la contabilidad del mes y no se puede deshacer.")) {
-            
-            // Filtramos el arreglo para dejar por fuera el pago seleccionado
             historialPagos = historialPagos.filter(p => p.idPago !== idPago);
-            
-            // Subimos el cambio a la nube (esto actualiza las gráficas automáticamente)
             guardarNube();
             mostrarToast("Pago Eliminado", "El registro fue borrado exitosamente.");
+        }
+    };
+
+    // =========================================================
+    // === NUEVA SECCIÓN: CAJA Y BANCOS                      ===
+    // =========================================================
+
+    const renderizarCajaYBancos = () => {
+        const vistaCaja = document.getElementById('vista-caja');
+        if (!vistaCaja || vistaCaja.style.display === 'none') return;
+
+        // 1. Calcular Totales del Mes Actual (Ahorro, Funerario, Admin, Proteccion)
+        const hoyMes = new Date().toISOString().slice(0, 7);
+        const pagosDelMes = historialPagos.filter(p => {
+            const f = p.fechaPagoReal || p.fechaPagoReporte;
+            return f && f.startsWith(hoyMes);
+        });
+
+        let totFunerarioBs = 0, totAdminBs = 0, totProteccionBs = 0, totAhorrosBs = 0;
+        
+        pagosDelMes.forEach(p => {
+            const tasa = p.tasaManual || 1;
+            totFunerarioBs += (p.funerarioUSD * tasa);
+            totAdminBs += (p.adminUSD * tasa);
+            totProteccionBs += ((p.proteccionUSD || 0) * tasa);
+            totAhorrosBs += (p.ahorrosUSD * tasa);
+        });
+
+        // 2. Llenar las tarjetas pequeñas (Totales Parciales)
+        document.getElementById('kpi-caja-anterior').textContent = `${parseFloat(efectivoAnteriorBs).toFixed(2)} Bs`;
+        document.getElementById('kpi-caja-ahorro').textContent = `${totAhorrosBs.toFixed(2)} Bs`;
+        document.getElementById('kpi-caja-funerario').textContent = `${totFunerarioBs.toFixed(2)} Bs`;
+        document.getElementById('kpi-caja-admin').textContent = `${totAdminBs.toFixed(2)} Bs`;
+        document.getElementById('kpi-caja-proteccion').textContent = `${totProteccionBs.toFixed(2)} Bs`;
+
+        // 3. Calcular y Llenar el Gran Total
+        const granTotal = efectivoAnteriorBs + totFunerarioBs + totAdminBs + totProteccionBs + totAhorrosBs;
+        document.getElementById('kpi-caja-gran-total').textContent = `${granTotal.toFixed(2)} Bs`;
+
+        // 4. Calcular Total de los Depósitos Históricos sumados al Mes Anterior
+        let sumaDepositos = 0;
+        historialDepositos.forEach(dep => {
+            sumaDepositos += parseFloat(dep.monto);
+        });
+        const totalDepositado = efectivoAnteriorBs + sumaDepositos;
+        document.getElementById('kpi-caja-total-depositado').textContent = `${totalDepositado.toFixed(2)} Bs`;
+
+        // 5. Renderizar Tabla de Historial de Depósitos
+        const tablaDepositos = document.getElementById('tabla-historial-depositos');
+        tablaDepositos.innerHTML = '';
+        
+        // Ordenar del más reciente al más antiguo
+        const depositosOrdenados = [...historialDepositos].sort((a, b) => b.id - a.id);
+        
+        if (depositosOrdenados.length === 0) {
+            tablaDepositos.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#6B7280;">Aún no has registrado depósitos.</td></tr>`;
+        } else {
+            depositosOrdenados.forEach(dep => {
+                const f = new Date(dep.id);
+                // Si guardamos la fecha manual, la usamos, si no, usamos la del ID (timestamp)
+                const fechaMostrar = dep.fecha || f.toLocaleDateString('es-ES'); 
+
+                tablaDepositos.innerHTML += `
+                    <tr style="border-bottom: 1px solid #F3F4F6;">
+                        <td style="padding: 10px; font-weight:bold; color:#10B981;">${fechaMostrar}</td>
+                        <td style="padding: 10px; color:#4B5563;">${dep.referencia}</td>
+                        <td style="padding: 10px; font-weight:bold; color:#1F2937;">${parseFloat(dep.monto).toFixed(2)} Bs</td>
+                        <td style="padding: 10px; text-align: right;">
+                            <button onclick="eliminarDeposito(${dep.id})" style="background:none; border:none; color:#EF4444; cursor:pointer; font-size:1.1rem;" title="Eliminar Depósito"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+    };
+
+    // Funciones de Modales para Caja y Bancos
+    
+    // Modal Saldo Anterior
+    window.abrirModalSaldoAnterior = () => {
+        document.getElementById('input-saldo-anterior').value = efectivoAnteriorBs;
+        document.getElementById('modal-saldo-anterior').style.display = 'flex';
+    };
+
+    document.getElementById('cerrar-modal-saldo')?.addEventListener('click', () => {
+        document.getElementById('modal-saldo-anterior').style.display = 'none';
+    });
+
+    document.getElementById('form-saldo-anterior')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        efectivoAnteriorBs = parseFloat(document.getElementById('input-saldo-anterior').value) || 0;
+        
+        guardarNube();
+        document.getElementById('modal-saldo-anterior').style.display = 'none';
+        mostrarToast("Saldo Actualizado", "El balance inicial ha sido modificado.");
+    });
+
+    // Modal Depósitos
+    window.abrirModalDeposito = () => {
+        document.getElementById('form-deposito').reset();
+        document.getElementById('deposito-fecha').value = new Date().toISOString().split('T')[0];
+        document.getElementById('modal-deposito').style.display = 'flex';
+    };
+
+    document.getElementById('cerrar-modal-deposito')?.addEventListener('click', () => {
+        document.getElementById('modal-deposito').style.display = 'none';
+    });
+
+    document.getElementById('form-deposito')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const nuevoDeposito = {
+            id: Date.now(),
+            fecha: document.getElementById('deposito-fecha').value,
+            monto: parseFloat(document.getElementById('deposito-monto').value) || 0,
+            referencia: document.getElementById('deposito-ref').value.trim()
+        };
+
+        historialDepositos.push(nuevoDeposito);
+        guardarNube();
+        
+        document.getElementById('modal-deposito').style.display = 'none';
+        mostrarToast("Depósito Registrado", "El depósito se añadió al historial exitosamente.");
+    });
+
+    window.eliminarDeposito = (id) => {
+        if (confirm("¿Estás seguro de que deseas eliminar este depósito? Se recalculará tu saldo total depositado.")) {
+            historialDepositos = historialDepositos.filter(d => d.id !== id);
+            guardarNube();
+            mostrarToast("Depósito Eliminado", "El registro fue borrado exitosamente.");
         }
     };
 
