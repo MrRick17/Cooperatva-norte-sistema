@@ -12,7 +12,7 @@ if (!firebase.apps.length) {
 }
 const db = firebase.firestore();
 
-// === HABILITAR PERSISTENCIA OFFLINE EN EL ADMIN ===
+// === HABILITAR PERSISTENCIA OFFLINE ===
 db.enablePersistence()
   .catch((err) => {
       if (err.code == 'failed-precondition') {
@@ -21,6 +21,14 @@ db.enablePersistence()
           console.warn("El navegador no soporta persistencia offline.");
       }
   });
+
+// === FUNCIÓN PARA FORMATO DE MILES Y DECIMALES ===
+const formatoMoneda = (monto) => {
+    return parseFloat(monto || 0).toLocaleString('de-DE', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+    });
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     
@@ -136,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const kpiIngresos = document.getElementById('kpi-ingresos');
         if (kpiIngresos) {
-            kpiIngresos.innerHTML = `<div style="font-size: 1.8rem; font-weight: 800; color: #1F2937;">${ingresosTotalesBsMesActual.toFixed(2)} Bs</div>`;
+            kpiIngresos.innerHTML = `<div style="font-size: 1.8rem; font-weight: 800; color: #1F2937;">${formatoMoneda(ingresosTotalesBsMesActual)} Bs</div>`;
         }
 
         const kpiRev = document.getElementById('kpi-revisiones');
@@ -174,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
             grid.innerHTML += `
                 <div class="cliente-card card-revision">
                     <h3 style="margin:0; font-size:1.1rem;">${c.nombre}</h3>
-                    <p style="margin:4px 0; font-size:0.85rem; color:#4B5563;">C.I: ${c.cedula} | Monto: <strong style="color:#006412;">$${c.montoPendiente}</strong></p>
+                    <p style="margin:4px 0; font-size:0.85rem; color:#4B5563;">C.I: ${c.cedula} | Monto: <strong style="color:#006412;">$${formatoMoneda(c.montoPendiente)}</strong></p>
                     <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-calendar-check"></i> Pago Realizado: <strong>${c.fechaPagoReal || 'N/A'}</strong></p>
                     <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-receipt"></i> ${metodoTexto}: <strong>${c.referenciaReporte || 'N/A'}</strong></p>
                     <p style="margin:2px 0; font-size:0.8rem; color:#1F2937;"><i class="fa-solid fa-file-invoice"></i> Factura: <strong>#${c.numeroFactura || 'S/N'}</strong></p>
@@ -208,16 +216,16 @@ document.addEventListener('DOMContentLoaded', () => {
             <p><strong>Fecha del Pago:</strong> ${c.fechaPagoReal || 'N/A'}</p>
             <p><strong>N° Factura:</strong> ${c.numeroFactura || 'N/A'}</p>
             <p><strong>Meses Pagados:</strong> ${meses}</p>
-            <p><strong>Tasa Usada (Manual):</strong> ${tasa.toFixed(2)} Bs/$</p>
-            <p><strong>Aporte Funerario ($${montoFunerario}):</strong> ${tieneFunerario ? 'Sí' : 'No'}</p>
-            <p><strong>Incluye Cremación ($7):</strong> ${c.tieneCremacion ? 'Sí' : 'No'}</p>
+            <p><strong>Tasa Usada (Manual):</strong> ${formatoMoneda(tasa)} Bs/$</p>
+            <p><strong>Aporte Funerario ($${formatoMoneda(montoFunerario)}):</strong> ${tieneFunerario ? 'Sí' : 'No'}</p>
+            <p><strong>Incluye Cremación ($7,00):</strong> ${c.tieneCremacion ? 'Sí' : 'No'}</p>
             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #E5E7EB;">
-            <p style="color:#3B82F6;"><strong>Aporte Funerario:</strong> ${(funerarioUSD * tasa).toFixed(2)} Bs</p>
-            <p style="color:#F59E0B;"><strong>Aporte Admin:</strong> ${(adminUSD * tasa).toFixed(2)} Bs</p>
-            <p style="color:#EF4444;"><strong>Protección Social:</strong> ${(proteccionUSD * tasa).toFixed(2)} Bs</p>
-            <p style="color:#10B981;"><strong>Ahorros Restante:</strong> ${(ahorrosUSD * tasa).toFixed(2)} Bs</p>
+            <p style="color:#3B82F6;"><strong>Aporte Funerario:</strong> ${formatoMoneda(funerarioUSD * tasa)} Bs</p>
+            <p style="color:#F59E0B;"><strong>Aporte Admin:</strong> ${formatoMoneda(adminUSD * tasa)} Bs</p>
+            <p style="color:#EF4444;"><strong>Protección Social:</strong> ${formatoMoneda(proteccionUSD * tasa)} Bs</p>
+            <p style="color:#10B981;"><strong>Ahorros Restante:</strong> ${formatoMoneda(ahorrosUSD * tasa)} Bs</p>
             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #E5E7EB;">
-            <p style="font-size: 1.05rem; font-weight: bold; color: #006412;">Total Pago: ${(total * tasa).toFixed(2)} Bs</p>
+            <p style="font-size: 1.05rem; font-weight: bold; color: #006412;">Total Pago: ${formatoMoneda(total * tasa)} Bs</p>
         `;
 
         document.getElementById('contenido-detalles-modal').innerHTML = html;
@@ -228,7 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-detalles-pago').style.display = 'none';
     });
 
-    // === GUARDADO PROTEGIDO PARA APROBAR PAGO ===
     window.aprobarPago = async (id, botonElemento) => {
         const index = clientes.findIndex(c => c.id === id);
         if(index > -1) {
@@ -368,12 +375,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td style="padding: 10px; font-weight:bold; color:#1F2937;">#${p.numeroFactura || 'S/N'}</td>
                         <td style="padding: 10px;"><strong>${p.clienteNombre}</strong><br><span style="font-size:0.75rem; color:#6B7280;">C.I: ${p.cedula}</span></td>
                         <td style="padding: 10px;">${metodoTexto}<br><span style="font-size:0.75rem; color:#6B7280;">Ref: ${p.referencia}</span></td>
-                        <td style="padding: 10px; color:#3B82F6;">${funBs.toFixed(2)} Bs</td>
-                        <td style="padding: 10px; color:#F59E0B;">${admBs.toFixed(2)} Bs</td>
-                        <td style="padding: 10px; color:#EF4444;">${protBs.toFixed(2)} Bs</td>
-                        <td style="padding: 10px; color:#10B981;">${ahoBs.toFixed(2)} Bs</td>
+                        <td style="padding: 10px; color:#3B82F6;">${formatoMoneda(funBs)} Bs</td>
+                        <td style="padding: 10px; color:#F59E0B;">${formatoMoneda(admBs)} Bs</td>
+                        <td style="padding: 10px; color:#EF4444;">${formatoMoneda(protBs)} Bs</td>
+                        <td style="padding: 10px; color:#10B981;">${formatoMoneda(ahoBs)} Bs</td>
                         <td style="padding: 10px; font-weight:bold; color:#006412; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-                        ${totalBs.toFixed(2)} Bs
+                        ${formatoMoneda(totalBs)} Bs
                         <div style="display: flex; gap: 10px;">
                             <button onclick="abrirModalEditarPago(${p.idPago})" style="background:none; border:none; color:#F59E0B; cursor:pointer; font-size:1.1rem;" title="Editar Pago"><i class="fa-solid fa-pen-to-square"></i></button>
                             <button onclick="eliminarPagoHistorial(${p.idPago})" style="background:none; border:none; color:#EF4444; cursor:pointer; font-size:1.1rem;" title="Eliminar Pago"><i class="fa-solid fa-trash"></i></button>
@@ -384,15 +391,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        document.getElementById('kpi-cont-total').textContent = `${totGeneralBs.toFixed(2)} Bs`;
-        document.getElementById('kpi-cont-funerario').textContent = `${totFunerarioBs.toFixed(2)} Bs`;
-        document.getElementById('kpi-cont-admin').textContent = `${totAdminBs.toFixed(2)} Bs`;
-        document.getElementById('kpi-cont-proteccion').textContent = `${totProteccionBs.toFixed(2)} Bs`;
-        document.getElementById('kpi-cont-ahorros').textContent = `${totAhorrosBs.toFixed(2)} Bs`;
+        document.getElementById('kpi-cont-total').textContent = `${formatoMoneda(totGeneralBs)} Bs`;
+        document.getElementById('kpi-cont-funerario').textContent = `${formatoMoneda(totFunerarioBs)} Bs`;
+        document.getElementById('kpi-cont-admin').textContent = `${formatoMoneda(totAdminBs)} Bs`;
+        document.getElementById('kpi-cont-proteccion').textContent = `${formatoMoneda(totProteccionBs)} Bs`;
+        document.getElementById('kpi-cont-ahorros').textContent = `${formatoMoneda(totAhorrosBs)} Bs`;
 
-        document.getElementById('kpi-cont-pmovil').textContent = `${totPMovilBs.toFixed(2)} Bs`;
-        document.getElementById('kpi-cont-transf').textContent = `${totTransfBs.toFixed(2)} Bs`;
-        document.getElementById('kpi-cont-efectivo').textContent = `${totEfectivoBs.toFixed(2)} Bs`;
+        document.getElementById('kpi-cont-pmovil').textContent = `${formatoMoneda(totPMovilBs)} Bs`;
+        document.getElementById('kpi-cont-transf').textContent = `${formatoMoneda(totTransfBs)} Bs`;
+        document.getElementById('kpi-cont-efectivo').textContent = `${formatoMoneda(totEfectivoBs)} Bs`;
     };
 
     document.getElementById('filtro-mes-contabilidad')?.addEventListener('change', renderizarContabilidad);
@@ -454,7 +461,6 @@ document.addEventListener('DOMContentLoaded', () => {
         clienteEliminarId = null;
     });
 
-    // === GUARDADO PROTEGIDO PARA ELIMINAR ===
     document.getElementById('btn-confirmar-eliminar')?.addEventListener('click', async (e) => {
         if(clienteEliminarId) {
             const btnSubmit = e.target;
@@ -518,7 +524,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-cliente').style.display = 'flex';
     };
 
-    // === GUARDADO PROTEGIDO PARA CREAR/EDITAR AFILIADO ===
     if(formCliente) {
         formCliente.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -625,7 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cuotaMensual = (tieneFunerario ? montoFunerario : 0) + 2 + (tieneCremacion ? 7 : 2) + 1;
 
         document.getElementById('edit-pago-id').value = pago.idPago;
-        document.getElementById('edit-pago-usd').value = pago.montoTotalUSD;
+        document.getElementById('edit-pago-usd').value = pago.montoTotalUSD.toFixed(2);
         document.getElementById('edit-pago-tasa').value = pago.tasaManual || 1;
         document.getElementById('edit-pago-factura').value = pago.numeroFactura || '';
         
@@ -646,7 +651,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-editar-pago').style.display = 'none';
     });
 
-    // === GUARDADO PROTEGIDO PARA EDITAR PAGO ===
     document.getElementById('form-editar-pago')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -730,21 +734,21 @@ document.addEventListener('DOMContentLoaded', () => {
             totAhorrosBs += (p.ahorrosUSD * tasa);
         });
 
-        document.getElementById('kpi-caja-anterior').textContent = `${parseFloat(efectivoAnteriorBs).toFixed(2)} Bs`;
-        document.getElementById('kpi-caja-ahorro').textContent = `${totAhorrosBs.toFixed(2)} Bs`;
-        document.getElementById('kpi-caja-funerario').textContent = `${totFunerarioBs.toFixed(2)} Bs`;
-        document.getElementById('kpi-caja-admin').textContent = `${totAdminBs.toFixed(2)} Bs`;
-        document.getElementById('kpi-caja-proteccion').textContent = `${totProteccionBs.toFixed(2)} Bs`;
+        document.getElementById('kpi-caja-anterior').textContent = `${formatoMoneda(efectivoAnteriorBs)} Bs`;
+        document.getElementById('kpi-caja-ahorro').textContent = `${formatoMoneda(totAhorrosBs)} Bs`;
+        document.getElementById('kpi-caja-funerario').textContent = `${formatoMoneda(totFunerarioBs)} Bs`;
+        document.getElementById('kpi-caja-admin').textContent = `${formatoMoneda(totAdminBs)} Bs`;
+        document.getElementById('kpi-caja-proteccion').textContent = `${formatoMoneda(totProteccionBs)} Bs`;
 
         const granTotal = efectivoAnteriorBs + totFunerarioBs + totAdminBs + totProteccionBs + totAhorrosBs;
-        document.getElementById('kpi-caja-gran-total').textContent = `${granTotal.toFixed(2)} Bs`;
+        document.getElementById('kpi-caja-gran-total').textContent = `${formatoMoneda(granTotal)} Bs`;
 
         let sumaDepositos = 0;
         historialDepositos.forEach(dep => {
             sumaDepositos += parseFloat(dep.monto);
         });
         const totalDepositado = efectivoAnteriorBs + sumaDepositos;
-        document.getElementById('kpi-caja-total-depositado').textContent = `${totalDepositado.toFixed(2)} Bs`;
+        document.getElementById('kpi-caja-total-depositado').textContent = `${formatoMoneda(totalDepositado)} Bs`;
 
         const tablaDepositos = document.getElementById('tabla-historial-depositos');
         tablaDepositos.innerHTML = '';
@@ -762,7 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <tr style="border-bottom: 1px solid #F3F4F6;">
                         <td style="padding: 10px; font-weight:bold; color:#10B981;">${fechaMostrar}</td>
                         <td style="padding: 10px; color:#4B5563;">${dep.referencia}</td>
-                        <td style="padding: 10px; font-weight:bold; color:#1F2937;">${parseFloat(dep.monto).toFixed(2)} Bs</td>
+                        <td style="padding: 10px; font-weight:bold; color:#1F2937;">${formatoMoneda(dep.monto)} Bs</td>
                         <td style="padding: 10px; text-align: right;">
                             <button onclick="eliminarDeposito(${dep.id})" style="background:none; border:none; color:#EF4444; cursor:pointer; font-size:1.1rem;" title="Eliminar Depósito"><i class="fa-solid fa-trash"></i></button>
                         </td>
@@ -773,7 +777,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     window.abrirModalSaldoAnterior = () => {
-        document.getElementById('input-saldo-anterior').value = efectivoAnteriorBs;
+        document.getElementById('input-saldo-anterior').value = efectivoAnteriorBs.toFixed(2);
         document.getElementById('modal-saldo-anterior').style.display = 'flex';
     };
 
@@ -781,7 +785,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-saldo-anterior').style.display = 'none';
     });
 
-    // === GUARDADO PROTEGIDO PARA SALDO ANTERIOR ===
     document.getElementById('form-saldo-anterior')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -813,7 +816,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-deposito').style.display = 'none';
     });
 
-    // === GUARDADO PROTEGIDO PARA DEPÓSITOS ===
     document.getElementById('form-deposito')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
