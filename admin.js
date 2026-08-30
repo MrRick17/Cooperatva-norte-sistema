@@ -12,9 +12,18 @@ if (!firebase.apps.length) {
 }
 const db = firebase.firestore();
 
+// === HABILITAR PERSISTENCIA OFFLINE EN EL ADMIN ===
+db.enablePersistence()
+  .catch((err) => {
+      if (err.code == 'failed-precondition') {
+          console.warn("Múltiples pestañas abiertas, persistencia solo funciona en una.");
+      } else if (err.code == 'unimplemented') {
+          console.warn("El navegador no soporta persistencia offline.");
+      }
+  });
+
 document.addEventListener('DOMContentLoaded', () => {
     
-    // === FUNCIÓN PARA MOSTRAR LA NOTIFICACIÓN ELEGANTE ===
     window.mostrarToast = (titulo, mensaje) => {
         const toast = document.getElementById('toast-notificacion');
         if(!toast) return;
@@ -50,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let ingresosTotalesUSD = 0;
     let historialPagos = [];
     
-    // === NUEVAS VARIABLES PARA CAJA Y BANCOS ===
     let efectivoAnteriorBs = 0;
     let historialDepositos = [];
 
@@ -62,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ingresosTotalesUSD = data.ingresosUSD || 0;
                 historialPagos = data.historialPagos || [];
                 
-                // Cargar datos de Caja y Bancos
                 efectivoAnteriorBs = data.efectivoAnteriorBs || 0;
                 historialDepositos = data.historialDepositos || [];
                 
@@ -80,17 +87,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function guardarNube() {
-        try {
-            await db.collection("cooperativa").doc("directorio").set({
-                listaAfiliados: clientes,
-                ingresosUSD: ingresosTotalesUSD,
-                historialPagos: historialPagos,
-                efectivoAnteriorBs: efectivoAnteriorBs,
-                historialDepositos: historialDepositos
-            });
-        } catch (error) {
-            console.error("Error al guardar en Firebase:", error);
-        }
+        await db.collection("cooperativa").doc("directorio").set({
+            listaAfiliados: clientes,
+            ingresosUSD: ingresosTotalesUSD,
+            historialPagos: historialPagos,
+            efectivoAnteriorBs: efectivoAnteriorBs,
+            historialDepositos: historialDepositos
+        });
     }
 
     const actualizarPantalla = () => {
@@ -146,25 +149,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const buscadorAdmin = document.getElementById('buscador-admin-clientes');
         renderizarDirectorio(buscadorAdmin ? buscadorAdmin.value : '');
         renderizarContabilidad();
-        
-        // Llamada automática para refrescar la caja
         renderizarCajaYBancos();
     };
-
-    // =========================================================
-    // === LÓGICA DE REVISIONES Y DIRECTORIO (SE MANTIENE)   ===
-    // =========================================================
 
     const renderizarRevisiones = (lista) => {
         const grid = document.getElementById('grid-admin-revisiones');
         if(!grid) return;
         grid.innerHTML = '';
+        
         if(lista.length === 0) {
             grid.innerHTML = '<p style="color:#6B7280; grid-column:1/-1;">No hay pagos pendientes por revisar.</p>';
             return;
         }
 
-        lista.forEach(c => {
+        // === ORDENAR POR NÚMERO DE FACTURA DE MENOR A MAYOR ===
+        const listaOrdenada = [...lista].sort((a, b) => {
+            const numA = parseInt(a.numeroFactura) || 0;
+            const numB = parseInt(b.numeroFactura) || 0;
+            return numA - numB;
+        });
+
+        listaOrdenada.forEach(c => {
             const metodoTexto = c.metodoPagoReporte === 'pago_movil' ? 'Pago Móvil' : (c.metodoPagoReporte === 'transferencia' ? 'Transferencia' : 'Efectivo');
             grid.innerHTML += `
                 <div class="cliente-card card-revision">
@@ -172,10 +177,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p style="margin:4px 0; font-size:0.85rem; color:#4B5563;">C.I: ${c.cedula} | Monto: <strong style="color:#006412;">$${c.montoPendiente}</strong></p>
                     <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-calendar-check"></i> Pago Realizado: <strong>${c.fechaPagoReal || 'N/A'}</strong></p>
                     <p style="margin:2px 0; font-size:0.8rem; color:#6B7280;"><i class="fa-solid fa-receipt"></i> ${metodoTexto}: <strong>${c.referenciaReporte || 'N/A'}</strong></p>
+                    <p style="margin:2px 0; font-size:0.8rem; color:#1F2937;"><i class="fa-solid fa-file-invoice"></i> Factura: <strong>#${c.numeroFactura || 'S/N'}</strong></p>
                     
                     <div style="display:flex; gap:8px; margin-top:10px;">
                         <button class="btn-accion-cliente" onclick="verDetallesPago(${c.id})" style="background:#3B82F6; color:white; border:none; flex:1;"><i class="fa-solid fa-eye"></i> Detalles</button>
-                        <button class="btn-accion-cliente" onclick="aprobarPago(${c.id})" style="background:#006412; color:white; border:none; flex:1;"><i class="fa-solid fa-check"></i> Aprobar</button>
+                        <button id="btn-aprobar-${c.id}" class="btn-accion-cliente" onclick="aprobarPago(${c.id}, this)" style="background:#006412; color:white; border:none; flex:1;"><i class="fa-solid fa-check"></i> Aprobar</button>
                     </div>
                 </div>
             `;
@@ -189,18 +195,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const meses = c.mesesReportados || 1;
         const total = c.montoPendiente || 0;
         const tasa = c.tasaReporte || 0;
-
         const tieneFunerario = c.tieneFunerario !== false; 
         
-        // REGLA ESPECIAL PARA ASOCIADO 1974
         const montoFunerario = (c.numeroAsociado == '1974') ? 10 : 5;
-        
         const funerarioUSD = tieneFunerario ? (montoFunerario * meses) : 0;
         const adminUSD = 2 * meses;
         const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
         const ahorrosUSD = Math.max(0, total - funerarioUSD - adminUSD - proteccionUSD);
         
-
         const html = `
             <p><strong>Cliente:</strong> ${c.nombre}</p>
             <p><strong>Fecha del Pago:</strong> ${c.fechaPagoReal || 'N/A'}</p>
@@ -226,52 +228,69 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-detalles-pago').style.display = 'none';
     });
 
-    window.aprobarPago = (id) => {
+    // === GUARDADO PROTEGIDO PARA APROBAR PAGO ===
+    window.aprobarPago = async (id, botonElemento) => {
         const index = clientes.findIndex(c => c.id === id);
         if(index > -1) {
-            const c = clientes[index];
-            const montoReportado = parseFloat(c.montoPendiente || 0);
-            const meses = parseInt(c.mesesReportados || 1);
-            const tasa = c.tasaReporte || 0;
-
-            const tieneFunerario = c.tieneFunerario !== false;
             
-            // REGLA ESPECIAL PARA ASOCIADO 1974
-            const montoFunerario = (c.numeroAsociado == '1974') ? 10 : 5;
-            
-            const funerarioUSD = tieneFunerario ? (montoFunerario * meses) : 0;
-            const adminUSD = 2 * meses;
-            const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
-            const ahorrosUSD = Math.max(0, montoReportado - funerarioUSD - adminUSD - proteccionUSD);
+            const textoOriginal = botonElemento.innerHTML;
+            botonElemento.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            botonElemento.disabled = true;
 
-            ingresosTotalesUSD += montoReportado;
-            c.montoAprobadoHistorial = (c.montoAprobadoHistorial || 0) + montoReportado;
-            c.estado = 'aldia';
-            c.montoPendiente = 0;
-            
-            let baseTime = c.fechaVencimiento || Date.now();
-            c.fechaVencimiento = baseTime + (meses * 28 * 24 * 60 * 60 * 1000);
+            try {
+                const c = clientes[index];
+                const montoReportado = parseFloat(c.montoPendiente || 0);
+                const meses = parseInt(c.mesesReportados || 1);
+                const tasa = c.tasaReporte || 0;
 
-            historialPagos.push({
-                idPago: Date.now(),
-                clienteNombre: c.nombre,
-                cedula: c.cedula,
-                numeroFactura: c.numeroFactura || 'S/N',
-                fechaPagoReporte: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0],
-                fechaPagoReal: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0],
-                meses: meses,
-                metodo: c.metodoPagoReporte || 'efectivo',
-                referencia: c.referenciaReporte || 'N/A',
-                montoTotalUSD: montoReportado,
-                funerarioUSD: funerarioUSD,
-                adminUSD: adminUSD,
-                proteccionUSD: proteccionUSD,
-                ahorrosUSD: ahorrosUSD,
-                tasaManual: tasa
-            });
+                const tieneFunerario = c.tieneFunerario !== false;
+                const montoFunerario = (c.numeroAsociado == '1974') ? 10 : 5;
+                
+                const funerarioUSD = tieneFunerario ? (montoFunerario * meses) : 0;
+                const adminUSD = 2 * meses;
+                const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
+                const ahorrosUSD = Math.max(0, montoReportado - funerarioUSD - adminUSD - proteccionUSD);
 
-            guardarNube();
-            mostrarToast("Pago Aprobado", "Se registró en la contabilidad exitosamente.");
+                ingresosTotalesUSD += montoReportado;
+                c.montoAprobadoHistorial = (c.montoAprobadoHistorial || 0) + montoReportado;
+                c.estado = 'aldia';
+                c.montoPendiente = 0;
+                
+                let baseTime = c.fechaVencimiento || Date.now();
+                c.fechaVencimiento = baseTime + (meses * 28 * 24 * 60 * 60 * 1000);
+
+                historialPagos.push({
+                    idPago: Date.now(),
+                    clienteNombre: c.nombre,
+                    cedula: c.cedula,
+                    numeroFactura: c.numeroFactura || 'S/N',
+                    fechaPagoReporte: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0],
+                    fechaPagoReal: c.fechaPagoReal || c.fechaPagoReporte || new Date().toISOString().split('T')[0],
+                    meses: meses,
+                    metodo: c.metodoPagoReporte || 'efectivo',
+                    referencia: c.referenciaReporte || 'N/A',
+                    montoTotalUSD: montoReportado,
+                    funerarioUSD: funerarioUSD,
+                    adminUSD: adminUSD,
+                    proteccionUSD: proteccionUSD,
+                    ahorrosUSD: ahorrosUSD,
+                    tasaManual: tasa
+                });
+
+                await guardarNube();
+                
+                if (navigator.onLine) {
+                    mostrarToast("Pago Aprobado", "Se registró en la contabilidad exitosamente.");
+                } else {
+                    mostrarToast("⚠️ Aprobado Sin Conexión", "El pago se sincronizará cuando regrese el internet.");
+                }
+
+            } catch(error) {
+                console.error(error);
+                mostrarToast("Error crítico", "No se pudo aprobar el pago.");
+                botonElemento.innerHTML = textoOriginal;
+                botonElemento.disabled = false;
+            }
         }
     };
 
@@ -435,12 +454,25 @@ document.addEventListener('DOMContentLoaded', () => {
         clienteEliminarId = null;
     });
 
-    document.getElementById('btn-confirmar-eliminar')?.addEventListener('click', () => {
+    // === GUARDADO PROTEGIDO PARA ELIMINAR ===
+    document.getElementById('btn-confirmar-eliminar')?.addEventListener('click', async (e) => {
         if(clienteEliminarId) {
-            clientes = clientes.filter(c => c.id !== clienteEliminarId);
-            guardarNube();
-            if(modalEliminar) modalEliminar.style.display = 'none';
-            mostrarToast("Afiliado Eliminado", "El registro ha sido borrado.");
+            const btnSubmit = e.target;
+            const originalText = btnSubmit.innerHTML;
+            btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            btnSubmit.disabled = true;
+            
+            try {
+                clientes = clientes.filter(c => c.id !== clienteEliminarId);
+                await guardarNube();
+                if(modalEliminar) modalEliminar.style.display = 'none';
+                mostrarToast("Afiliado Eliminado", "El registro ha sido borrado.");
+            } catch(error) {
+                mostrarToast("Error", "No se pudo borrar el registro.");
+            } finally {
+                btnSubmit.innerHTML = originalText;
+                btnSubmit.disabled = false;
+            }
         }
     });
 
@@ -486,54 +518,74 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-cliente').style.display = 'flex';
     };
 
+    // === GUARDADO PROTEGIDO PARA CREAR/EDITAR AFILIADO ===
     if(formCliente) {
-        formCliente.addEventListener('submit', (e) => {
+        formCliente.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const fechaInput = document.getElementById('cli-vence').value;
-            let timestampVencimiento;
-            if (fechaInput) {
-                const [y, m, d] = fechaInput.split('-');
-                timestampVencimiento = new Date(y, m-1, d, 23, 59, 59).getTime();
-            } else {
-                timestampVencimiento = Date.now() + (28 * 24 * 60 * 60 * 1000);
-            }
+            
+            const btnSubmit = e.target.querySelector('button[type="submit"]');
+            const originalText = btnSubmit.innerHTML;
+            btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+            btnSubmit.disabled = true;
 
-            const editId = document.getElementById('cli-id-editar').value;
-
-            if (editId) {
-                const idx = clientes.findIndex(c => c.id == editId);
-                if (idx > -1) {
-                    clientes[idx].nombre = document.getElementById('cli-nombre').value.trim();
-                    clientes[idx].cedula = document.getElementById('cli-cedula').value.trim();
-                    clientes[idx].numeroAsociado = document.getElementById('cli-asociado').value.trim();
-                    clientes[idx].contrato = document.getElementById('cli-contrato').value.trim();
-                    clientes[idx].telefono = document.getElementById('cli-telefono').value.trim();
-                    clientes[idx].tieneFunerario = document.getElementById('cli-funerario').value === 'si';
-                    clientes[idx].tieneCremacion = document.getElementById('cli-cremacion').value === 'si';
-                    clientes[idx].fechaVencimiento = timestampVencimiento;
+            try {
+                const fechaInput = document.getElementById('cli-vence').value;
+                let timestampVencimiento;
+                if (fechaInput) {
+                    const [y, m, d] = fechaInput.split('-');
+                    timestampVencimiento = new Date(y, m-1, d, 23, 59, 59).getTime();
+                } else {
+                    timestampVencimiento = Date.now() + (28 * 24 * 60 * 60 * 1000);
                 }
-            } else {
-                clientes.push({
-                    id: Date.now(),
-                    nombre: document.getElementById('cli-nombre').value.trim(),
-                    cedula: document.getElementById('cli-cedula').value.trim(),
-                    numeroAsociado: document.getElementById('cli-asociado').value.trim(),
-                    contrato: document.getElementById('cli-contrato').value.trim(),
-                    telefono: document.getElementById('cli-telefono').value.trim(),
-                    tieneFunerario: document.getElementById('cli-funerario').value === 'si',
-                    tieneCremacion: document.getElementById('cli-cremacion').value === 'si',
-                    fechaVencimiento: timestampVencimiento,
-                    estado: 'aldia',
-                    montoPendiente: 0
-                });
-            }
 
-            formCliente.reset();
-            document.getElementById('cli-id-editar').value = '';
-            document.getElementById('modal-cliente').style.display = 'none';
-            document.getElementById('titulo-modal-cliente').innerHTML = '<i class="fa-solid fa-user-plus" style="color: #006412; margin-right: 8px;"></i>Registrar Afiliado';
-            guardarNube();
-            mostrarToast("Afiliado Guardado", "El directorio ha sido actualizado.");
+                const editId = document.getElementById('cli-id-editar').value;
+
+                if (editId) {
+                    const idx = clientes.findIndex(c => c.id == editId);
+                    if (idx > -1) {
+                        clientes[idx].nombre = document.getElementById('cli-nombre').value.trim();
+                        clientes[idx].cedula = document.getElementById('cli-cedula').value.trim();
+                        clientes[idx].numeroAsociado = document.getElementById('cli-asociado').value.trim();
+                        clientes[idx].contrato = document.getElementById('cli-contrato').value.trim();
+                        clientes[idx].telefono = document.getElementById('cli-telefono').value.trim();
+                        clientes[idx].tieneFunerario = document.getElementById('cli-funerario').value === 'si';
+                        clientes[idx].tieneCremacion = document.getElementById('cli-cremacion').value === 'si';
+                        clientes[idx].fechaVencimiento = timestampVencimiento;
+                    }
+                } else {
+                    clientes.push({
+                        id: Date.now(),
+                        nombre: document.getElementById('cli-nombre').value.trim(),
+                        cedula: document.getElementById('cli-cedula').value.trim(),
+                        numeroAsociado: document.getElementById('cli-asociado').value.trim(),
+                        contrato: document.getElementById('cli-contrato').value.trim(),
+                        telefono: document.getElementById('cli-telefono').value.trim(),
+                        tieneFunerario: document.getElementById('cli-funerario').value === 'si',
+                        tieneCremacion: document.getElementById('cli-cremacion').value === 'si',
+                        fechaVencimiento: timestampVencimiento,
+                        estado: 'aldia',
+                        montoPendiente: 0
+                    });
+                }
+
+                await guardarNube();
+
+                formCliente.reset();
+                document.getElementById('cli-id-editar').value = '';
+                document.getElementById('modal-cliente').style.display = 'none';
+                document.getElementById('titulo-modal-cliente').innerHTML = '<i class="fa-solid fa-user-plus" style="color: #006412; margin-right: 8px;"></i>Registrar Afiliado';
+                
+                if(navigator.onLine) {
+                    mostrarToast("Afiliado Guardado", "El directorio ha sido actualizado.");
+                } else {
+                    mostrarToast("⚠️ Guardado Sin Conexión", "Sincronización pendiente con el servidor.");
+                }
+            } catch (error) {
+                mostrarToast("Error", "No se pudo guardar la información.");
+            } finally {
+                btnSubmit.innerHTML = originalText;
+                btnSubmit.disabled = false;
+            }
         });
     }
 
@@ -594,62 +646,74 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-editar-pago').style.display = 'none';
     });
 
-    document.getElementById('form-editar-pago')?.addEventListener('submit', (e) => {
+    // === GUARDADO PROTEGIDO PARA EDITAR PAGO ===
+    document.getElementById('form-editar-pago')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        const idPago = parseInt(document.getElementById('edit-pago-id').value);
-        const nuevoUSD = parseFloat(document.getElementById('edit-pago-usd').value) || 0;
-        const nuevaTasa = parseFloat(document.getElementById('edit-pago-tasa').value) || 0;
-        const nuevosMeses = parseInt(document.getElementById('edit-pago-meses').value) || 1;
-        const nuevaFactura = document.getElementById('edit-pago-factura').value.trim();
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+        const originalText = btnSubmit.innerHTML;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+        btnSubmit.disabled = true;
 
-        const pagoIndex = historialPagos.findIndex(p => p.idPago === idPago);
-        
-        if (pagoIndex > -1) {
-            const pago = historialPagos[pagoIndex];
-            const cliente = clientes.find(c => c.cedula === pago.cedula);
+        try {
+            const idPago = parseInt(document.getElementById('edit-pago-id').value);
+            const nuevoUSD = parseFloat(document.getElementById('edit-pago-usd').value) || 0;
+            const nuevaTasa = parseFloat(document.getElementById('edit-pago-tasa').value) || 0;
+            const nuevosMeses = parseInt(document.getElementById('edit-pago-meses').value) || 1;
+            const nuevaFactura = document.getElementById('edit-pago-factura').value.trim();
+
+            const pagoIndex = historialPagos.findIndex(p => p.idPago === idPago);
             
-            const tieneFunerario = cliente ? (cliente.tieneFunerario !== false) : true;
-            const tieneCremacion = cliente ? (cliente.tieneCremacion === true) : false;
-            const montoFunerario = (cliente && cliente.numeroAsociado == '1974') ? 10 : 5;
-            
-            const funerarioUSD = tieneFunerario ? (montoFunerario * nuevosMeses) : 0;
-            const adminUSD = 2 * nuevosMeses;
-            const proteccionUSD = (tieneCremacion ? 7 : 2) * nuevosMeses;
-            const ahorrosUSD = Math.max(0, nuevoUSD - funerarioUSD - adminUSD - proteccionUSD);
+            if (pagoIndex > -1) {
+                const pago = historialPagos[pagoIndex];
+                const cliente = clientes.find(c => c.cedula === pago.cedula);
+                
+                const tieneFunerario = cliente ? (cliente.tieneFunerario !== false) : true;
+                const tieneCremacion = cliente ? (cliente.tieneCremacion === true) : false;
+                const montoFunerario = (cliente && cliente.numeroAsociado == '1974') ? 10 : 5;
+                
+                const funerarioUSD = tieneFunerario ? (montoFunerario * nuevosMeses) : 0;
+                const adminUSD = 2 * nuevosMeses;
+                const proteccionUSD = (tieneCremacion ? 7 : 2) * nuevosMeses;
+                const ahorrosUSD = Math.max(0, nuevoUSD - funerarioUSD - adminUSD - proteccionUSD);
 
-            historialPagos[pagoIndex].montoTotalUSD = nuevoUSD;
-            historialPagos[pagoIndex].tasaManual = nuevaTasa;
-            historialPagos[pagoIndex].meses = nuevosMeses;
-            historialPagos[pagoIndex].funerarioUSD = funerarioUSD;
-            historialPagos[pagoIndex].adminUSD = adminUSD;
-            historialPagos[pagoIndex].proteccionUSD = proteccionUSD;
-            historialPagos[pagoIndex].ahorrosUSD = ahorrosUSD;
-            historialPagos[pagoIndex].numeroFactura = nuevaFactura;
+                historialPagos[pagoIndex].montoTotalUSD = nuevoUSD;
+                historialPagos[pagoIndex].tasaManual = nuevaTasa;
+                historialPagos[pagoIndex].meses = nuevosMeses;
+                historialPagos[pagoIndex].funerarioUSD = funerarioUSD;
+                historialPagos[pagoIndex].adminUSD = adminUSD;
+                historialPagos[pagoIndex].proteccionUSD = proteccionUSD;
+                historialPagos[pagoIndex].ahorrosUSD = ahorrosUSD;
+                historialPagos[pagoIndex].numeroFactura = nuevaFactura;
 
-            guardarNube();
-            document.getElementById('modal-editar-pago').style.display = 'none';
-            mostrarToast("Pago Actualizado", "La contabilidad se ha recalculado.");
+                await guardarNube();
+                document.getElementById('modal-editar-pago').style.display = 'none';
+                mostrarToast("Pago Actualizado", "La contabilidad se ha recalculado.");
+            }
+        } catch(error) {
+            mostrarToast("Error", "Ocurrió un problema al editar el pago.");
+        } finally {
+            btnSubmit.innerHTML = originalText;
+            btnSubmit.disabled = false;
         }
     });
 
-    window.eliminarPagoHistorial = (idPago) => {
+    window.eliminarPagoHistorial = async (idPago) => {
         if (confirm("¿Estás seguro de que deseas eliminar este pago? \n\nEsta acción recalculará toda la contabilidad del mes y no se puede deshacer.")) {
-            historialPagos = historialPagos.filter(p => p.idPago !== idPago);
-            guardarNube();
-            mostrarToast("Pago Eliminado", "El registro fue borrado exitosamente.");
+            try {
+                historialPagos = historialPagos.filter(p => p.idPago !== idPago);
+                await guardarNube();
+                mostrarToast("Pago Eliminado", "El registro fue borrado exitosamente.");
+            } catch(error) {
+                mostrarToast("Error", "No se pudo borrar el pago.");
+            }
         }
     };
-
-    // =========================================================
-    // === NUEVA SECCIÓN: CAJA Y BANCOS                      ===
-    // =========================================================
 
     const renderizarCajaYBancos = () => {
         const vistaCaja = document.getElementById('vista-caja');
         if (!vistaCaja || vistaCaja.style.display === 'none') return;
 
-        // 1. Calcular Totales del Mes Actual (Ahorro, Funerario, Admin, Proteccion)
         const hoyMes = new Date().toISOString().slice(0, 7);
         const pagosDelMes = historialPagos.filter(p => {
             const f = p.fechaPagoReal || p.fechaPagoReporte;
@@ -666,18 +730,15 @@ document.addEventListener('DOMContentLoaded', () => {
             totAhorrosBs += (p.ahorrosUSD * tasa);
         });
 
-        // 2. Llenar las tarjetas pequeñas (Totales Parciales)
         document.getElementById('kpi-caja-anterior').textContent = `${parseFloat(efectivoAnteriorBs).toFixed(2)} Bs`;
         document.getElementById('kpi-caja-ahorro').textContent = `${totAhorrosBs.toFixed(2)} Bs`;
         document.getElementById('kpi-caja-funerario').textContent = `${totFunerarioBs.toFixed(2)} Bs`;
         document.getElementById('kpi-caja-admin').textContent = `${totAdminBs.toFixed(2)} Bs`;
         document.getElementById('kpi-caja-proteccion').textContent = `${totProteccionBs.toFixed(2)} Bs`;
 
-        // 3. Calcular y Llenar el Gran Total
         const granTotal = efectivoAnteriorBs + totFunerarioBs + totAdminBs + totProteccionBs + totAhorrosBs;
         document.getElementById('kpi-caja-gran-total').textContent = `${granTotal.toFixed(2)} Bs`;
 
-        // 4. Calcular Total de los Depósitos Históricos sumados al Mes Anterior
         let sumaDepositos = 0;
         historialDepositos.forEach(dep => {
             sumaDepositos += parseFloat(dep.monto);
@@ -685,11 +746,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalDepositado = efectivoAnteriorBs + sumaDepositos;
         document.getElementById('kpi-caja-total-depositado').textContent = `${totalDepositado.toFixed(2)} Bs`;
 
-        // 5. Renderizar Tabla de Historial de Depósitos
         const tablaDepositos = document.getElementById('tabla-historial-depositos');
         tablaDepositos.innerHTML = '';
         
-        // Ordenar del más reciente al más antiguo
         const depositosOrdenados = [...historialDepositos].sort((a, b) => b.id - a.id);
         
         if (depositosOrdenados.length === 0) {
@@ -697,7 +756,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             depositosOrdenados.forEach(dep => {
                 const f = new Date(dep.id);
-                // Si guardamos la fecha manual, la usamos, si no, usamos la del ID (timestamp)
                 const fechaMostrar = dep.fecha || f.toLocaleDateString('es-ES'); 
 
                 tablaDepositos.innerHTML += `
@@ -713,10 +771,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     };
-
-    // Funciones de Modales para Caja y Bancos
     
-    // Modal Saldo Anterior
     window.abrirModalSaldoAnterior = () => {
         document.getElementById('input-saldo-anterior').value = efectivoAnteriorBs;
         document.getElementById('modal-saldo-anterior').style.display = 'flex';
@@ -726,16 +781,28 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-saldo-anterior').style.display = 'none';
     });
 
-    document.getElementById('form-saldo-anterior')?.addEventListener('submit', (e) => {
+    // === GUARDADO PROTEGIDO PARA SALDO ANTERIOR ===
+    document.getElementById('form-saldo-anterior')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        efectivoAnteriorBs = parseFloat(document.getElementById('input-saldo-anterior').value) || 0;
         
-        guardarNube();
-        document.getElementById('modal-saldo-anterior').style.display = 'none';
-        mostrarToast("Saldo Actualizado", "El balance inicial ha sido modificado.");
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+        const originalText = btnSubmit.innerHTML;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+        btnSubmit.disabled = true;
+
+        try {
+            efectivoAnteriorBs = parseFloat(document.getElementById('input-saldo-anterior').value) || 0;
+            await guardarNube();
+            document.getElementById('modal-saldo-anterior').style.display = 'none';
+            mostrarToast("Saldo Actualizado", "El balance inicial ha sido modificado.");
+        } catch (error) {
+            mostrarToast("Error", "No se pudo actualizar el saldo.");
+        } finally {
+            btnSubmit.innerHTML = originalText;
+            btnSubmit.disabled = false;
+        }
     });
 
-    // Modal Depósitos
     window.abrirModalDeposito = () => {
         document.getElementById('form-deposito').reset();
         document.getElementById('deposito-fecha').value = new Date().toISOString().split('T')[0];
@@ -746,28 +813,45 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-deposito').style.display = 'none';
     });
 
-    document.getElementById('form-deposito')?.addEventListener('submit', (e) => {
+    // === GUARDADO PROTEGIDO PARA DEPÓSITOS ===
+    document.getElementById('form-deposito')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        const nuevoDeposito = {
-            id: Date.now(),
-            fecha: document.getElementById('deposito-fecha').value,
-            monto: parseFloat(document.getElementById('deposito-monto').value) || 0,
-            referencia: document.getElementById('deposito-ref').value.trim()
-        };
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+        const originalText = btnSubmit.innerHTML;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+        btnSubmit.disabled = true;
 
-        historialDepositos.push(nuevoDeposito);
-        guardarNube();
-        
-        document.getElementById('modal-deposito').style.display = 'none';
-        mostrarToast("Depósito Registrado", "El depósito se añadió al historial exitosamente.");
+        try {
+            const nuevoDeposito = {
+                id: Date.now(),
+                fecha: document.getElementById('deposito-fecha').value,
+                monto: parseFloat(document.getElementById('deposito-monto').value) || 0,
+                referencia: document.getElementById('deposito-ref').value.trim()
+            };
+
+            historialDepositos.push(nuevoDeposito);
+            await guardarNube();
+            
+            document.getElementById('modal-deposito').style.display = 'none';
+            mostrarToast("Depósito Registrado", "El depósito se añadió al historial exitosamente.");
+        } catch (error) {
+            mostrarToast("Error", "No se pudo registrar el depósito.");
+        } finally {
+            btnSubmit.innerHTML = originalText;
+            btnSubmit.disabled = false;
+        }
     });
 
-    window.eliminarDeposito = (id) => {
+    window.eliminarDeposito = async (id) => {
         if (confirm("¿Estás seguro de que deseas eliminar este depósito? Se recalculará tu saldo total depositado.")) {
-            historialDepositos = historialDepositos.filter(d => d.id !== id);
-            guardarNube();
-            mostrarToast("Depósito Eliminado", "El registro fue borrado exitosamente.");
+            try {
+                historialDepositos = historialDepositos.filter(d => d.id !== id);
+                await guardarNube();
+                mostrarToast("Depósito Eliminado", "El registro fue borrado exitosamente.");
+            } catch(error) {
+                mostrarToast("Error", "No se pudo borrar el depósito.");
+            }
         }
     };
 

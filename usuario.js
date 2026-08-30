@@ -14,6 +14,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const db = firebase.firestore();
 
+    // === HABILITAR PERSISTENCIA OFFLINE (EL BLINDAJE) ===
+    db.enablePersistence()
+      .catch((err) => {
+          if (err.code == 'failed-precondition') {
+              console.warn("Múltiples pestañas abiertas, persistencia solo funciona en una.");
+          } else if (err.code == 'unimplemented') {
+              console.warn("El navegador no soporta persistencia offline.");
+          }
+      });
+
     let clientes = [];
     let ingresosTotalesUSD = 0;
     let historialPagos = [];
@@ -43,15 +53,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function guardarNube() {
-        try {
-            await db.collection("cooperativa").doc("directorio").set({
-                listaAfiliados: clientes,
-                ingresosUSD: ingresosTotalesUSD,
-                historialPagos: historialPagos
-            });
-        } catch (error) {
-            console.error("Error al guardar:", error);
-        }
+        // Ahora arrojamos el error para que el botón lo detecte
+        await db.collection("cooperativa").doc("directorio").set({
+            listaAfiliados: clientes,
+            ingresosUSD: ingresosTotalesUSD,
+            historialPagos: historialPagos
+        });
     }
 
     const renderizarClientes = (filtro = '') => {
@@ -60,32 +67,28 @@ document.addEventListener('DOMContentLoaded', () => {
         grid.innerHTML = '';
 
         const hoy = new Date();
-const inicioDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime();
-let requiereGuardar = false;
+        const inicioDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime();
+        let requiereGuardar = false;
 
-clientes.forEach(c => {
-    // No tocamos a los que están esperando aprobación de secretaría
-    if (c.estado !== 'revision') {
-        if (c.fechaVencimiento < inicioDeMesActual) {
-            // Si está vencido pero no dice "atrasado", lo corregimos
-            if (c.estado !== 'atrasado') {
-                c.estado = 'atrasado';
-                requiereGuardar = true;
+        clientes.forEach(c => {
+            if (c.estado !== 'revision') {
+                if (c.fechaVencimiento < inicioDeMesActual) {
+                    if (c.estado !== 'atrasado') {
+                        c.estado = 'atrasado';
+                        requiereGuardar = true;
+                    }
+                } else {
+                    if (c.estado !== 'aldia') {
+                        c.estado = 'aldia';
+                        requiereGuardar = true;
+                    }
+                }
             }
-        } else {
-            // Si NO está vencido pero estaba marcado como "atrasado" por el error viejo, lo reparamos
-            if (c.estado !== 'aldia') {
-                c.estado = 'aldia';
-                requiereGuardar = true;
-            }
+        });
+
+        if (requiereGuardar && typeof guardarNube === 'function') {
+            guardarNube();
         }
-    }
-});
-
-// Si el sistema detectó y reparó errores, guardamos los cambios en Firebase automáticamente
-if (requiereGuardar && typeof guardarNube === 'function') {
-    guardarNube();
-}
 
         const filtrados = clientes.filter(c => 
             (c.nombre && c.nombre.toLowerCase().includes(filtro.toLowerCase())) || 
@@ -145,26 +148,23 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         document.getElementById('pago-fecha-reporte').value = hoy;
         document.getElementById('pago-fecha-real').value = hoy;
         
-        // Calculamos cuánto paga ESTE cliente en específico por 1 mes
-        let cuotaMensual = 10; // Base estándar
+        let cuotaMensual = 10;
         if (cliente) {
-            // REGLA ESPECIAL PARA ASOCIADO 1974
             const montoFunerario = (cliente.numeroAsociado == '1974') ? 10 : 5;
             const baseFunerario = (cliente.tieneFunerario !== false) ? montoFunerario : 0;
             const baseAdmin = 2;
             const baseProteccion = cliente.tieneCremacion ? 7 : 2;
             
-            // Sumamos los fondos fijos + $1 que se va al ahorro
             cuotaMensual = baseFunerario + baseAdmin + baseProteccion + 1;
         }
 
         const inputMeses = document.getElementById('pago-meses');
         if(inputMeses) {
             inputMeses.value = 1;
-            inputMeses.setAttribute('data-cuota', cuotaMensual); // Guardamos su cuota base oculta
+            inputMeses.setAttribute('data-cuota', cuotaMensual);
         }
         
-        if(inputUsd) inputUsd.value = cuotaMensual; // Auto-llenamos el monto inicial automáticamente
+        if(inputUsd) inputUsd.value = cuotaMensual;
         if(inputBs) inputBs.value = '';
         if(inputTasaManual) inputTasaManual.value = '';
         if(inputRef) inputRef.value = '';
@@ -174,15 +174,12 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         if(modalPago) modalPago.style.display = 'flex';
     };
 
-    // NUEVO: Calculadora automática cuando la secretaria cambie los meses
     document.getElementById('pago-meses')?.addEventListener('input', (e) => {
         const meses = parseInt(e.target.value) || 1;
         const cuota = parseFloat(e.target.getAttribute('data-cuota')) || 10;
         
         if (inputUsd) {
             inputUsd.value = (cuota * meses).toFixed(2);
-            
-            // Si la secretaria ya había escrito la tasa, le calculamos los Bolívares de una vez
             const tasa = parseFloat(inputTasaManual.value) || 0;
             if (tasa > 0 && inputBs) {
                 inputBs.value = (parseFloat(inputUsd.value) * tasa).toFixed(2);
@@ -241,8 +238,13 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         if(modalPago) modalPago.style.display = 'none'; 
     });
 
-    document.getElementById('form-pago')?.addEventListener('submit', (e) => {
+    // === GUARDADO PROTEGIDO PARA REPORTAR PAGO ===
+    document.getElementById('form-pago')?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+        const originalText = btnSubmit.innerHTML;
+
         const id = parseInt(document.getElementById('pago-cliente-id').value);
         const montoFinalUSD = parseFloat(inputUsd.value) || 0;
         const tasaManualSeleccionada = parseFloat(inputTasaManual.value) || 0;
@@ -260,19 +262,44 @@ if (requiereGuardar && typeof guardarNube === 'function') {
 
         const index = clientes.findIndex(c => c.id === id);
         if (index > -1 && montoFinalUSD > 0) {
-            clientes[index].estado = 'revision';
-            clientes[index].montoPendiente = montoFinalUSD;
-            clientes[index].fechaPagoReporte = fechaReporte;
-            clientes[index].fechaPagoReal = fechaReal;
-            clientes[index].mesesReportados = meses;
-            clientes[index].metodoPagoReporte = metodo;
-            clientes[index].referenciaReporte = referencia;
-            clientes[index].tasaReporte = tasaManualSeleccionada;
-            clientes[index].numeroFactura = numeroFactura; // <-- NUEVO
+            
+            // 1. Bloqueamos el botón y mostramos estado de carga
+            btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+            btnSubmit.disabled = true;
 
-            if(modalPago) modalPago.style.display = 'none';
-            guardarNube();
-            mostrarToast("Pago Reportado", "Enviado a revisión administrativa con éxito.");
+            try {
+                clientes[index].estado = 'revision';
+                clientes[index].montoPendiente = montoFinalUSD;
+                clientes[index].fechaPagoReporte = fechaReporte;
+                clientes[index].fechaPagoReal = fechaReal;
+                clientes[index].mesesReportados = meses;
+                clientes[index].metodoPagoReporte = metodo;
+                clientes[index].referenciaReporte = referencia;
+                clientes[index].tasaReporte = tasaManualSeleccionada;
+                clientes[index].numeroFactura = numeroFactura;
+
+                // 2. Esperamos que Firebase confirme
+                await guardarNube();
+                
+                if(modalPago) modalPago.style.display = 'none';
+                
+                // 3. Revisamos el estado del internet y avisamos
+                if (navigator.onLine) {
+                    mostrarToast("Pago Reportado", "Enviado a revisión administrativa con éxito.");
+                } else {
+                    mostrarToast("⚠️ Guardado Sin Conexión", "El pago se enviará automáticamente al regresar el internet.");
+                }
+                
+                e.target.reset();
+
+            } catch (error) {
+                console.error(error);
+                mostrarToast("Error crítico", "No se pudo reportar el pago.");
+            } finally {
+                // 4. Restauramos el botón
+                btnSubmit.innerHTML = originalText;
+                btnSubmit.disabled = false;
+            }
         }
     });
 
@@ -296,36 +323,58 @@ if (requiereGuardar && typeof guardarNube === 'function') {
         if(modalClienteSec) modalClienteSec.style.display = 'none';
     });
 
+    // === GUARDADO PROTEGIDO PARA NUEVO AFILIADO ===
     if(formClienteSec) {
-        formClienteSec.addEventListener('submit', (e) => {
+        formClienteSec.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const fechaInput = document.getElementById('cli-vence').value;
-            let timestampVencimiento;
-            if (fechaInput) {
-                const [y, m, d] = fechaInput.split('-');
-                timestampVencimiento = new Date(y, m-1, d, 23, 59, 59).getTime();
-            } else {
-                timestampVencimiento = Date.now() + (28 * 24 * 60 * 60 * 1000);
+            
+            const btnSubmit = e.target.querySelector('button[type="submit"]');
+            const originalText = btnSubmit.innerHTML;
+            btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+            btnSubmit.disabled = true;
+
+            try {
+                const fechaInput = document.getElementById('cli-vence').value;
+                let timestampVencimiento;
+                if (fechaInput) {
+                    const [y, m, d] = fechaInput.split('-');
+                    timestampVencimiento = new Date(y, m-1, d, 23, 59, 59).getTime();
+                } else {
+                    timestampVencimiento = Date.now() + (28 * 24 * 60 * 60 * 1000);
+                }
+
+                clientes.push({
+                    id: Date.now(),
+                    nombre: document.getElementById('cli-nombre').value.trim(),
+                    cedula: document.getElementById('cli-cedula').value.trim(),
+                    numeroAsociado: document.getElementById('cli-asociado').value.trim(),
+                    contrato: document.getElementById('cli-contrato').value.trim(),
+                    telefono: document.getElementById('cli-telefono').value.trim(),
+                    tieneFunerario: document.getElementById('cli-funerario').value === 'si',
+                    tieneCremacion: document.getElementById('cli-cremacion').value === 'si',
+                    fechaVencimiento: timestampVencimiento,
+                    estado: 'aldia',
+                    montoPendiente: 0
+                });
+
+                await guardarNube();
+
+                formClienteSec.reset();
+                if(modalClienteSec) modalClienteSec.style.display = 'none';
+                
+                if (navigator.onLine) {
+                    mostrarToast("Afiliado Creado", "Se guardó en el directorio exitosamente.");
+                } else {
+                    mostrarToast("⚠️ Creado Sin Conexión", "El afiliado se subirá cuando regrese el internet.");
+                }
+
+            } catch(error) {
+                console.error(error);
+                mostrarToast("Error", "No se pudo registrar al afiliado.");
+            } finally {
+                btnSubmit.innerHTML = originalText;
+                btnSubmit.disabled = false;
             }
-
-            clientes.push({
-                id: Date.now(),
-                nombre: document.getElementById('cli-nombre').value.trim(),
-                cedula: document.getElementById('cli-cedula').value.trim(),
-                numeroAsociado: document.getElementById('cli-asociado').value.trim(),
-                contrato: document.getElementById('cli-contrato').value.trim(),
-                telefono: document.getElementById('cli-telefono').value.trim(),
-                tieneFunerario: document.getElementById('cli-funerario').value === 'si',
-                tieneCremacion: document.getElementById('cli-cremacion').value === 'si',
-                fechaVencimiento: timestampVencimiento,
-                estado: 'aldia',
-                montoPendiente: 0
-            });
-
-            formClienteSec.reset();
-            if(modalClienteSec) modalClienteSec.style.display = 'none';
-            guardarNube();
-            mostrarToast("Afiliado Creado", "Se guardó en el directorio exitosamente.");
         });
     }
 
