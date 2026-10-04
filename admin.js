@@ -53,7 +53,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let clientes = [];
     let ingresosTotalesUSD = 0;
     let historialPagos = [];
-    let efectivoAnteriorBs = 0;
+    
+    // NUEVO: Diccionario para guardar el saldo inicial de CADA mes
+    let saldosInicialesBs = {}; 
     let historialDepositos = [];
 
     function escucharNubeEnTiempoReal() {
@@ -63,20 +65,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 clientes = data.listaAfiliados || [];
                 ingresosTotalesUSD = data.ingresosUSD || 0;
                 historialPagos = data.historialPagos || [];
-                efectivoAnteriorBs = data.efectivoAnteriorBs || 0;
                 historialDepositos = data.historialDepositos || [];
+                
+                // MIGRACIÓN: Si existía el saldo viejo, lo pasamos a la nueva estructura de meses
+                saldosInicialesBs = data.saldosInicialesBs || {};
+                const mesActual = new Date().toISOString().slice(0, 7);
+                if (data.efectivoAnteriorBs !== undefined && Object.keys(saldosInicialesBs).length === 0) {
+                    saldosInicialesBs[mesActual] = data.efectivoAnteriorBs;
+                }
                 
                 actualizarPantalla();
 
-                // Ocultar la pantalla de carga de administrador al descargar datos
+                // OCULTAR LA PANTALLA DE CARGA GLOBAL AL TERMINAR DE LEER
                 const loader = document.getElementById('global-loader');
                 if (loader) loader.classList.add('oculto');
             } else {
                 db.collection("cooperativa").doc("directorio").set({
-                    listaAfiliados: [], ingresosUSD: 0, historialPagos: [], efectivoAnteriorBs: 0, historialDepositos: []
+                    listaAfiliados: [], ingresosUSD: 0, historialPagos: [], saldosInicialesBs: {}, historialDepositos: []
                 });
             }
-        }, (error) => console.error("Error Firestore:", error));
+        }, (error) => {
+            console.error("Error Firestore:", error);
+            mostrarToast("❌ Error de red", "No se pudo sincronizar la base de datos.");
+        });
     }
 
     async function guardarNube() {
@@ -87,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
             listaAfiliados: clientes,
             ingresosUSD: ingresosTotalesUSD,
             historialPagos: historialPagos,
-            efectivoAnteriorBs: efectivoAnteriorBs,
+            saldosInicialesBs: saldosInicialesBs,
             historialDepositos: historialDepositos
         });
     }
@@ -173,7 +184,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const total = c.montoPendiente || 0;
         const tasa = c.tasaReporte || 0;
         const tieneFunerario = c.tieneFunerario !== false; 
-        
         const montoFunerario = (c.numeroAsociado == '1974') ? 10 : 5;
         const funerarioUSD = tieneFunerario ? (montoFunerario * meses) : 0;
         const adminUSD = 2 * meses;
@@ -205,13 +215,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-detalles-pago').style.display = 'none';
     });
 
-    // === APROBACIÓN DE PAGOS BLINDADA ===
     window.aprobarPago = async (id, botonElemento) => {
         const index = clientes.findIndex(c => c.id === id);
         if(index > -1) {
             
             if (!navigator.onLine) {
-                mostrarToast("⚠️ Sin Conexión", "Estás offline. Conéctate para aprobar el pago y actualizar la contabilidad.");
+                mostrarToast("⚠️ Sin Conexión", "Estás offline. Conéctate para aprobar el pago.");
                 return;
             }
 
@@ -231,9 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const adminUSD = 2 * meses;
                 const proteccionUSD = (c.tieneCremacion ? 7 : 2) * meses;
                 const ahorrosUSD = Math.max(0, montoReportado - funerarioUSD - adminUSD - proteccionUSD);
-
-                // Hacemos copias por si falla
-                const clienteCopia = JSON.parse(JSON.stringify(c));
 
                 ingresosTotalesUSD += montoReportado;
                 c.montoAprobadoHistorial = (c.montoAprobadoHistorial || 0) + montoReportado;
@@ -265,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mostrarToast("¡Pago Aprobado!", "Contabilidad actualizada en la nube.");
 
             } catch(error) {
-                historialPagos.pop(); // Revertimos historial
+                historialPagos.pop();
                 console.error(error);
                 mostrarToast("❌ Error crítico", "No se guardó el pago. Verifica tu red.");
                 botonElemento.innerHTML = textoOriginal;
@@ -274,33 +280,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const renderizarContabilidad = () => {
-        const selectMes = document.getElementById('filtro-mes-contabilidad');
-        const tabla = document.getElementById('tabla-historial-contabilidad');
-        if (!tabla || !selectMes) return;
-
+    // FUNCIONES AUXILIARES PARA EXTRAER MESES
+    const obtenerMesesDisponibles = () => {
         const mesesSet = new Set();
         const hoyMes = new Date().toISOString().slice(0, 7);
         mesesSet.add(hoyMes);
 
         historialPagos.forEach(p => {
             if (p.fechaPagoReal) mesesSet.add(p.fechaPagoReal.slice(0, 7));
-            else if (p.fechaPagoReporte) mesesSet.add(p.fechaPagoReporte.slice(0, 7));
+        });
+        historialDepositos.forEach(d => {
+            if (d.fecha) mesesSet.add(d.fecha.slice(0, 7));
         });
 
-        const mesesOrdenados = Array.from(mesesSet).sort().reverse();
+        return Array.from(mesesSet).sort().reverse();
+    };
+
+    const poblarSelectMes = (idSelect) => {
+        const selectElement = document.getElementById(idSelect);
+        if (!selectElement) return;
+
+        const mesesOrdenados = obtenerMesesDisponibles();
+        const valorPrevio = selectElement.value;
         
-        const valorPrevio = selectMes.value;
-        selectMes.innerHTML = '';
+        selectElement.innerHTML = '';
         mesesOrdenados.forEach(m => {
             const [y, mesNum] = m.split('-');
             const fechaObj = new Date(y, mesNum - 1, 1);
-            selectMes.innerHTML += `<option value="${m}">${fechaObj.toLocaleString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase()}</option>`;
+            selectElement.innerHTML += `<option value="${m}">${fechaObj.toLocaleString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase()}</option>`;
         });
 
-        if (valorPrevio && mesesSet.has(valorPrevio)) selectMes.value = valorPrevio;
+        if (valorPrevio && mesesOrdenados.includes(valorPrevio)) {
+            selectElement.value = valorPrevio;
+        }
+        return selectElement.value || new Date().toISOString().slice(0, 7);
+    };
 
-        const mesSeleccionado = selectMes.value || hoyMes;
+
+    const renderizarContabilidad = () => {
+        const tabla = document.getElementById('tabla-historial-contabilidad');
+        if (!tabla) return;
+        
+        const mesSeleccionado = poblarSelectMes('filtro-mes-contabilidad');
+
         const pagosFiltrados = historialPagos.filter(p => {
             const f = p.fechaPagoReal || p.fechaPagoReporte;
             return f && f.startsWith(mesSeleccionado);
@@ -359,13 +381,163 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('kpi-cont-admin').textContent = `${formatoMoneda(totAdminBs)} Bs`;
         document.getElementById('kpi-cont-proteccion').textContent = `${formatoMoneda(totProteccionBs)} Bs`;
         document.getElementById('kpi-cont-ahorros').textContent = `${formatoMoneda(totAhorrosBs)} Bs`;
-
         document.getElementById('kpi-cont-pmovil').textContent = `${formatoMoneda(totPMovilBs)} Bs`;
         document.getElementById('kpi-cont-transf').textContent = `${formatoMoneda(totTransfBs)} Bs`;
         document.getElementById('kpi-cont-efectivo').textContent = `${formatoMoneda(totEfectivoBs)} Bs`;
     };
 
     document.getElementById('filtro-mes-contabilidad')?.addEventListener('change', renderizarContabilidad);
+
+    // ==========================================
+    // NUEVA LÓGICA DE CAJA Y BANCOS
+    // ==========================================
+    const renderizarCajaYBancos = () => {
+        const vistaCaja = document.getElementById('vista-caja');
+        if (!vistaCaja || vistaCaja.style.display === 'none') return;
+
+        const mesSeleccionado = poblarSelectMes('filtro-mes-caja');
+        
+        // 1. Saldo Inicial de ese mes específico
+        const saldoInicial = saldosInicialesBs[mesSeleccionado] || 0;
+
+        // 2. Ingresos exclusivamente en EFECTIVO
+        let totalEfectivoIngresado = 0;
+        historialPagos.forEach(p => {
+            const f = p.fechaPagoReal || p.fechaPagoReporte;
+            if (f && f.startsWith(mesSeleccionado) && p.metodo === 'efectivo') {
+                totalEfectivoIngresado += (p.montoTotalUSD * (p.tasaManual || 1));
+            }
+        });
+
+        // 3. Depósitos realizados este mes
+        let totalDepositado = 0;
+        const depositosDelMes = historialDepositos.filter(d => d.fecha && d.fecha.startsWith(mesSeleccionado));
+        depositosDelMes.forEach(dep => {
+            totalDepositado += parseFloat(dep.monto);
+        });
+
+        // 4. Fórmula Matemática: Efectivo Pendiente
+        const efectivoPendiente = saldoInicial + totalEfectivoIngresado - totalDepositado;
+
+        document.getElementById('kpi-caja-anterior').textContent = `${formatoMoneda(saldoInicial)} Bs`;
+        document.getElementById('kpi-caja-ingresos-efectivo').textContent = `${formatoMoneda(totalEfectivoIngresado)} Bs`;
+        document.getElementById('kpi-caja-depositos').textContent = `${formatoMoneda(totalDepositado)} Bs`;
+        document.getElementById('kpi-caja-pendiente').textContent = `${formatoMoneda(efectivoPendiente)} Bs`;
+
+        // Renderizar Tabla de Depósitos
+        const tablaDepositos = document.getElementById('tabla-historial-depositos');
+        tablaDepositos.innerHTML = '';
+        const depositosOrdenados = [...depositosDelMes].sort((a, b) => b.id - a.id);
+        
+        if (depositosOrdenados.length === 0) {
+            tablaDepositos.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#6B7280;">Aún no has registrado depósitos este mes.</td></tr>`;
+        } else {
+            depositosOrdenados.forEach(dep => {
+                const f = new Date(dep.id);
+                const fechaMostrar = dep.fecha || f.toLocaleDateString('es-ES'); 
+                tablaDepositos.innerHTML += `
+                    <tr style="border-bottom: 1px solid #F3F4F6;">
+                        <td style="padding: 10px; font-weight:bold; color:#10B981;">${fechaMostrar}</td>
+                        <td style="padding: 10px; color:#4B5563;">${dep.referencia}</td>
+                        <td style="padding: 10px; font-weight:bold; color:#1F2937;">${formatoMoneda(dep.monto)} Bs</td>
+                        <td style="padding: 10px; text-align: right;">
+                            <button onclick="eliminarDeposito(${dep.id})" style="background:none; border:none; color:#EF4444; cursor:pointer; font-size:1.1rem;"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+    };
+    
+    document.getElementById('filtro-mes-caja')?.addEventListener('change', renderizarCajaYBancos);
+
+    window.abrirModalSaldoAnterior = () => {
+        const mesSeleccionado = document.getElementById('filtro-mes-caja').value;
+        const saldoActual = saldosInicialesBs[mesSeleccionado] || 0;
+        document.getElementById('input-saldo-anterior').value = saldoActual.toFixed(2);
+        document.getElementById('modal-saldo-anterior').style.display = 'flex';
+    };
+    
+    document.getElementById('cerrar-modal-saldo')?.addEventListener('click', () => {
+        document.getElementById('modal-saldo-anterior').style.display = 'none';
+    });
+
+    document.getElementById('form-saldo-anterior')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!navigator.onLine) return mostrarToast("⚠️ Sin Conexión", "No tienes internet para actualizar.");
+        
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+        const originalText = btnSubmit.innerHTML;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+        btnSubmit.disabled = true;
+
+        const mesSeleccionado = document.getElementById('filtro-mes-caja').value;
+        const saldoBackup = saldosInicialesBs[mesSeleccionado];
+
+        try {
+            saldosInicialesBs[mesSeleccionado] = parseFloat(document.getElementById('input-saldo-anterior').value) || 0;
+            await guardarNube();
+            document.getElementById('modal-saldo-anterior').style.display = 'none';
+            mostrarToast("Saldo Actualizado", `Balance inicial guardado para el mes ${mesSeleccionado}.`);
+        } catch (error) {
+            if (saldoBackup !== undefined) saldosInicialesBs[mesSeleccionado] = saldoBackup;
+            else delete saldosInicialesBs[mesSeleccionado];
+            mostrarToast("❌ Error", "No se pudo conectar a la nube.");
+        } finally {
+            btnSubmit.innerHTML = originalText;
+            btnSubmit.disabled = false;
+        }
+    });
+
+    window.abrirModalDeposito = () => {
+        document.getElementById('form-deposito').reset();
+        document.getElementById('deposito-fecha').value = new Date().toISOString().split('T')[0];
+        document.getElementById('modal-deposito').style.display = 'flex';
+    };
+    document.getElementById('cerrar-modal-deposito')?.addEventListener('click', () => document.getElementById('modal-deposito').style.display = 'none');
+
+    document.getElementById('form-deposito')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!navigator.onLine) return mostrarToast("⚠️ Error", "Requieres internet para depósitos.");
+        
+        const btnSubmit = e.target.querySelector('button[type="submit"]');
+        const originalText = btnSubmit.innerHTML;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+        btnSubmit.disabled = true;
+
+        try {
+            historialDepositos.push({
+                id: Date.now(),
+                fecha: document.getElementById('deposito-fecha').value,
+                monto: parseFloat(document.getElementById('deposito-monto').value) || 0,
+                referencia: document.getElementById('deposito-ref').value.trim()
+            });
+            await guardarNube();
+            document.getElementById('modal-deposito').style.display = 'none';
+            mostrarToast("Depósito Registrado", "Guardado exitosamente en la nube.");
+        } catch (error) {
+            historialDepositos.pop();
+            mostrarToast("❌ Error", "Fallo al registrar el depósito.");
+        } finally {
+            btnSubmit.innerHTML = originalText;
+            btnSubmit.disabled = false;
+        }
+    });
+
+    window.eliminarDeposito = async (id) => {
+        if (!navigator.onLine) return mostrarToast("⚠ Error", "Sin conexión. No se borrará.");
+        if (confirm("¿Estás seguro de que deseas eliminar este depósito? El efectivo en caja se recalculará.")) {
+            const historialBackup = [...historialDepositos];
+            try {
+                historialDepositos = historialDepositos.filter(d => d.id !== id);
+                await guardarNube();
+                mostrarToast("Depósito Eliminado", "Borrado con éxito.");
+            } catch(error) {
+                historialDepositos = historialBackup;
+                mostrarToast("❌ Error", "No se borró.");
+            }
+        }
+    };
 
     const renderizarDirectorio = (filtro = '') => {
         const grid = document.getElementById('grid-admin-clientes');
@@ -546,18 +718,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('btn-exportar-excel')?.addEventListener('click', () => {
         if (clientes.length === 0) return mostrarToast("Atención", "No hay afiliados para exportar.");
-        
         const datosExcel = clientes.map(c => ({
-            "N° Asociado": c.numeroAsociado || 'N/A',
-            "Registro Funerario": c.contrato || 'N/A',
-            "Nombre": c.nombre || 'N/A',
-            "Cédula": c.cedula || 'N/A',
-            "Teléfono": c.telefono || 'N/A',
-            "Aporte Funerario": (c.tieneFunerario !== false) ? 'Sí' : 'No',
-            "Cremación": c.tieneCremacion ? 'Sí' : 'No',
+            "N° Asociado": c.numeroAsociado || 'N/A', "Registro Funerario": c.contrato || 'N/A', "Nombre": c.nombre || 'N/A',
+            "Cédula": c.cedula || 'N/A', "Teléfono": c.telefono || 'N/A',
+            "Aporte Funerario": (c.tieneFunerario !== false) ? 'Sí' : 'No', "Cremación": c.tieneCremacion ? 'Sí' : 'No',
             "Vencimiento (Pago hasta)": c.fechaVencimiento ? new Date(c.fechaVencimiento).toLocaleDateString('es-ES') : 'N/A'
         }));
-        
         if (typeof XLSX !== 'undefined') {
             const hoja = XLSX.utils.json_to_sheet(datosExcel);
             const libro = XLSX.utils.book_new();
@@ -571,11 +737,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.abrirModalEditarPago = (idPago) => {
         const pago = historialPagos.find(p => p.idPago === idPago);
         if(!pago) return;
-
         const cliente = clientes.find(c => c.cedula === pago.cedula);
         const tieneFunerario = cliente ? (cliente.tieneFunerario !== false) : true;
         const tieneCremacion = cliente ? (cliente.tieneCremacion === true) : false;
-        
         const montoFunerario = (cliente && cliente.numeroAsociado == '1974') ? 10 : 5;
         const cuotaMensual = (tieneFunerario ? montoFunerario : 0) + 2 + (tieneCremacion ? 7 : 2) + 1;
 
@@ -587,7 +751,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const inputMeses = document.getElementById('edit-pago-meses');
         inputMeses.value = pago.meses || 1;
         inputMeses.setAttribute('data-cuota', cuotaMensual);
-
         document.getElementById('modal-editar-pago').style.display = 'flex';
     };
 
@@ -620,15 +783,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const nuevaFactura = document.getElementById('edit-pago-factura').value.trim();
 
             const pagoIndex = historialPagos.findIndex(p => p.idPago === idPago);
-            
             if (pagoIndex > -1) {
                 const pago = historialPagos[pagoIndex];
                 const cliente = clientes.find(c => c.cedula === pago.cedula);
-                
                 const tieneFunerario = cliente ? (cliente.tieneFunerario !== false) : true;
                 const tieneCremacion = cliente ? (cliente.tieneCremacion === true) : false;
                 const montoFunerario = (cliente && cliente.numeroAsociado == '1974') ? 10 : 5;
-                
                 const funerarioUSD = tieneFunerario ? (montoFunerario * nuevosMeses) : 0;
                 const adminUSD = 2 * nuevosMeses;
                 const proteccionUSD = (tieneCremacion ? 7 : 2) * nuevosMeses;
@@ -667,143 +827,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch(error) {
                 historialPagos = historialBackup;
                 mostrarToast("❌ Error", "No se pudo borrar el pago.");
-            }
-        }
-    };
-
-    const renderizarCajaYBancos = () => {
-        const vistaCaja = document.getElementById('vista-caja');
-        if (!vistaCaja || vistaCaja.style.display === 'none') return;
-
-        const hoyMes = new Date().toISOString().slice(0, 7);
-        const pagosDelMes = historialPagos.filter(p => {
-            const f = p.fechaPagoReal || p.fechaPagoReporte;
-            return f && f.startsWith(hoyMes);
-        });
-
-        let totFunerarioBs = 0, totAdminBs = 0, totProteccionBs = 0, totAhorrosBs = 0;
-        pagosDelMes.forEach(p => {
-            const tasa = p.tasaManual || 1;
-            totFunerarioBs += (p.funerarioUSD * tasa);
-            totAdminBs += (p.adminUSD * tasa);
-            totProteccionBs += ((p.proteccionUSD || 0) * tasa);
-            totAhorrosBs += (p.ahorrosUSD * tasa);
-        });
-
-        document.getElementById('kpi-caja-anterior').textContent = `${formatoMoneda(efectivoAnteriorBs)} Bs`;
-        document.getElementById('kpi-caja-ahorro').textContent = `${formatoMoneda(totAhorrosBs)} Bs`;
-        document.getElementById('kpi-caja-funerario').textContent = `${formatoMoneda(totFunerarioBs)} Bs`;
-        document.getElementById('kpi-caja-admin').textContent = `${formatoMoneda(totAdminBs)} Bs`;
-        document.getElementById('kpi-caja-proteccion').textContent = `${formatoMoneda(totProteccionBs)} Bs`;
-
-        const granTotal = efectivoAnteriorBs + totFunerarioBs + totAdminBs + totProteccionBs + totAhorrosBs;
-        document.getElementById('kpi-caja-gran-total').textContent = `${formatoMoneda(granTotal)} Bs`;
-
-        let sumaDepositos = 0;
-        historialDepositos.forEach(dep => sumaDepositos += parseFloat(dep.monto));
-        const totalDepositado = efectivoAnteriorBs + sumaDepositos;
-        document.getElementById('kpi-caja-total-depositado').textContent = `${formatoMoneda(totalDepositado)} Bs`;
-
-        const tablaDepositos = document.getElementById('tabla-historial-depositos');
-        tablaDepositos.innerHTML = '';
-        const depositosOrdenados = [...historialDepositos].sort((a, b) => b.id - a.id);
-        
-        if (depositosOrdenados.length === 0) {
-            tablaDepositos.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#6B7280;">Aún no has registrado depósitos.</td></tr>`;
-        } else {
-            depositosOrdenados.forEach(dep => {
-                const f = new Date(dep.id);
-                const fechaMostrar = dep.fecha || f.toLocaleDateString('es-ES'); 
-                tablaDepositos.innerHTML += `
-                    <tr style="border-bottom: 1px solid #F3F4F6;">
-                        <td style="padding: 10px; font-weight:bold; color:#10B981;">${fechaMostrar}</td>
-                        <td style="padding: 10px; color:#4B5563;">${dep.referencia}</td>
-                        <td style="padding: 10px; font-weight:bold; color:#1F2937;">${formatoMoneda(dep.monto)} Bs</td>
-                        <td style="padding: 10px; text-align: right;">
-                            <button onclick="eliminarDeposito(${dep.id})" style="background:none; border:none; color:#EF4444; cursor:pointer; font-size:1.1rem;"><i class="fa-solid fa-trash"></i></button>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
-    };
-    
-    window.abrirModalSaldoAnterior = () => {
-        document.getElementById('input-saldo-anterior').value = efectivoAnteriorBs.toFixed(2);
-        document.getElementById('modal-saldo-anterior').style.display = 'flex';
-    };
-    document.getElementById('cerrar-modal-saldo')?.addEventListener('click', () => document.getElementById('modal-saldo-anterior').style.display = 'none');
-
-    document.getElementById('form-saldo-anterior')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!navigator.onLine) return mostrarToast("⚠️ Sin Conexión", "No tienes internet para actualizar.");
-        
-        const btnSubmit = e.target.querySelector('button[type="submit"]');
-        const originalText = btnSubmit.innerHTML;
-        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
-        btnSubmit.disabled = true;
-
-        const saldoBackup = efectivoAnteriorBs;
-        try {
-            efectivoAnteriorBs = parseFloat(document.getElementById('input-saldo-anterior').value) || 0;
-            await guardarNube();
-            document.getElementById('modal-saldo-anterior').style.display = 'none';
-            mostrarToast("Saldo Actualizado", "Balance de inicio modificado.");
-        } catch (error) {
-            efectivoAnteriorBs = saldoBackup;
-            mostrarToast("❌ Error", "No se pudo conectar a la nube.");
-        } finally {
-            btnSubmit.innerHTML = originalText;
-            btnSubmit.disabled = false;
-        }
-    });
-
-    window.abrirModalDeposito = () => {
-        document.getElementById('form-deposito').reset();
-        document.getElementById('deposito-fecha').value = new Date().toISOString().split('T')[0];
-        document.getElementById('modal-deposito').style.display = 'flex';
-    };
-    document.getElementById('cerrar-modal-deposito')?.addEventListener('click', () => document.getElementById('modal-deposito').style.display = 'none');
-
-    document.getElementById('form-deposito')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!navigator.onLine) return mostrarToast("⚠️ Error", "Requieres internet para depósitos.");
-        
-        const btnSubmit = e.target.querySelector('button[type="submit"]');
-        const originalText = btnSubmit.innerHTML;
-        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
-        btnSubmit.disabled = true;
-
-        try {
-            historialDepositos.push({
-                id: Date.now(),
-                fecha: document.getElementById('deposito-fecha').value,
-                monto: parseFloat(document.getElementById('deposito-monto').value) || 0,
-                referencia: document.getElementById('deposito-ref').value.trim()
-            });
-            await guardarNube();
-            document.getElementById('modal-deposito').style.display = 'none';
-            mostrarToast("Depósito Registrado", "Guardado exitosamente.");
-        } catch (error) {
-            historialDepositos.pop();
-            mostrarToast("❌ Error", "Fallo al registrar el depósito en la nube.");
-        } finally {
-            btnSubmit.innerHTML = originalText;
-            btnSubmit.disabled = false;
-        }
-    });
-
-    window.eliminarDeposito = async (id) => {
-        if (!navigator.onLine) return mostrarToast("⚠️️ Error", "Sin conexión. No se borrará.");
-        if (confirm("¿Estás seguro de que deseas eliminar este depósito?")) {
-            const historialBackup = [...historialDepositos];
-            try {
-                historialDepositos = historialDepositos.filter(d => d.id !== id);
-                await guardarNube();
-                mostrarToast("Depósito Eliminado", "Borrado con éxito.");
-            } catch(error) {
-                historialDepositos = historialBackup;
-                mostrarToast("❌ Error", "No se borró.");
             }
         }
     };
