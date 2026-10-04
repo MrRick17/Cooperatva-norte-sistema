@@ -14,21 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const db = firebase.firestore();
 
-    // === HABILITAR PERSISTENCIA OFFLINE (EL BLINDAJE) ===
-    db.enablePersistence()
-      .catch((err) => {
-          if (err.code == 'failed-precondition') {
-              console.warn("Múltiples pestañas abiertas, persistencia solo funciona en una.");
-          } else if (err.code == 'unimplemented') {
-              console.warn("El navegador no soporta persistencia offline.");
-          }
-      });
+    db.enablePersistence().catch((err) => {
+        console.warn("Persistencia offline inactiva o con errores:", err);
+    });
 
     let clientes = [];
     let ingresosTotalesUSD = 0;
     let historialPagos = [];
 
-    // === FUNCIÓN PARA MOSTRAR LA NOTIFICACIÓN ELEGANTE ===
     window.mostrarToast = (titulo, mensaje) => {
         const toast = document.getElementById('toast-notificacion');
         if(!toast) return;
@@ -48,12 +41,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const buscador = document.getElementById('buscador-clientes');
                 renderizarClientes(buscador ? buscador.value : '');
+
+                // Ocultar la pantalla de carga cuando los datos ya estén listos
+                const loader = document.getElementById('global-loader');
+                if (loader) loader.classList.add('oculto');
             }
-        }, (error) => console.error("Error Firebase:", error));
+        }, (error) => {
+            console.error("Error Firebase:", error);
+            mostrarToast("Error", "Problemas de conexión con la base de datos.");
+        });
     }
 
     async function guardarNube() {
-        // Ahora arrojamos el error para que el botón lo detecte
+        if (!navigator.onLine) {
+            throw new Error("No hay conexión a internet.");
+        }
         await db.collection("cooperativa").doc("directorio").set({
             listaAfiliados: clientes,
             ingresosUSD: ingresosTotalesUSD,
@@ -65,30 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const grid = document.getElementById('clientes-grid');
         if (!grid) return;
         grid.innerHTML = '';
-
-        const hoy = new Date();
-        const inicioDeMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime();
-        let requiereGuardar = false;
-
-        clientes.forEach(c => {
-            if (c.estado !== 'revision') {
-                if (c.fechaVencimiento < inicioDeMesActual) {
-                    if (c.estado !== 'atrasado') {
-                        c.estado = 'atrasado';
-                        requiereGuardar = true;
-                    }
-                } else {
-                    if (c.estado !== 'aldia') {
-                        c.estado = 'aldia';
-                        requiereGuardar = true;
-                    }
-                }
-            }
-        });
-
-        if (requiereGuardar && typeof guardarNube === 'function') {
-            guardarNube();
-        }
 
         const filtrados = clientes.filter(c => 
             (c.nombre && c.nombre.toLowerCase().includes(filtro.toLowerCase())) || 
@@ -140,7 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.abrirModalPago = (id, nombre) => {
         const cliente = clientes.find(c => c.id === id);
-        
         document.getElementById('pago-cliente-id').value = id;
         document.getElementById('pago-cliente-nombre').textContent = nombre;
         
@@ -152,10 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cliente) {
             const montoFunerario = (cliente.numeroAsociado == '1974') ? 10 : 5;
             const baseFunerario = (cliente.tieneFunerario !== false) ? montoFunerario : 0;
-            const baseAdmin = 2;
-            const baseProteccion = cliente.tieneCremacion ? 7 : 2;
-            
-            cuotaMensual = baseFunerario + baseAdmin + baseProteccion + 1;
+            cuotaMensual = baseFunerario + 2 + (cliente.tieneCremacion ? 7 : 2) + 1;
         }
 
         const inputMeses = document.getElementById('pago-meses');
@@ -177,13 +151,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('pago-meses')?.addEventListener('input', (e) => {
         const meses = parseInt(e.target.value) || 1;
         const cuota = parseFloat(e.target.getAttribute('data-cuota')) || 10;
-        
         if (inputUsd) {
             inputUsd.value = (cuota * meses).toFixed(2);
             const tasa = parseFloat(inputTasaManual.value) || 0;
-            if (tasa > 0 && inputBs) {
-                inputBs.value = (parseFloat(inputUsd.value) * tasa).toFixed(2);
-            }
+            if (tasa > 0 && inputBs) inputBs.value = (parseFloat(inputUsd.value) * tasa).toFixed(2);
         }
     });
 
@@ -206,17 +177,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    if(selectMetodo) {
-        selectMetodo.addEventListener('change', (e) => actualizarCamposMetodo(e.target.value));
-    }
+    if(selectMetodo) selectMetodo.addEventListener('change', (e) => actualizarCamposMetodo(e.target.value));
 
     if(inputTasaManual) {
         inputTasaManual.addEventListener('input', () => {
-            if (inputUsd.value) {
-                inputBs.value = parseFloat((parseFloat(inputUsd.value) * parseFloat(inputTasaManual.value)).toFixed(6));
-            } else if (inputBs.value) {
-                inputUsd.value = parseFloat((parseFloat(inputBs.value) / parseFloat(inputTasaManual.value)).toFixed(6));
-            }
+            if (inputUsd.value) inputBs.value = parseFloat((parseFloat(inputUsd.value) * parseFloat(inputTasaManual.value)).toFixed(6));
         });
     }
 
@@ -242,6 +207,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('form-pago')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        if (!navigator.onLine) {
+            mostrarToast("⚠️ Sin Conexión", "Conéctate a internet para enviar el pago y evitar pérdidas.");
+            return;
+        }
+
         const btnSubmit = e.target.querySelector('button[type="submit"]');
         const originalText = btnSubmit.innerHTML;
 
@@ -263,11 +233,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const index = clientes.findIndex(c => c.id === id);
         if (index > -1 && montoFinalUSD > 0) {
             
-            // 1. Bloqueamos el botón y mostramos estado de carga
             btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
             btnSubmit.disabled = true;
 
             try {
+                // Guardado de respaldo en caso de fallo
+                const clienteCopia = JSON.parse(JSON.stringify(clientes[index]));
+
                 clientes[index].estado = 'revision';
                 clientes[index].montoPendiente = montoFinalUSD;
                 clientes[index].fechaPagoReporte = fechaReporte;
@@ -278,25 +250,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 clientes[index].tasaReporte = tasaManualSeleccionada;
                 clientes[index].numeroFactura = numeroFactura;
 
-                // 2. Esperamos que Firebase confirme
                 await guardarNube();
                 
                 if(modalPago) modalPago.style.display = 'none';
-                
-                // 3. Revisamos el estado del internet y avisamos
-                if (navigator.onLine) {
-                    mostrarToast("Pago Reportado", "Enviado a revisión administrativa con éxito.");
-                } else {
-                    mostrarToast("⚠️ Guardado Sin Conexión", "El pago se enviará automáticamente al regresar el internet.");
-                }
-                
+                mostrarToast("¡Pago Reportado!", "Se guardó en la nube y se envió a revisión.");
                 e.target.reset();
 
             } catch (error) {
                 console.error(error);
-                mostrarToast("Error crítico", "No se pudo reportar el pago.");
+                mostrarToast("❌ Error Crítico", "No se guardó el pago. Verifica tu conexión.");
+                // Si falla, revertimos el cambio para que pueda intentarlo de nuevo
+                if (typeof clienteCopia !== 'undefined') clientes[index] = clienteCopia;
             } finally {
-                // 4. Restauramos el botón
                 btnSubmit.innerHTML = originalText;
                 btnSubmit.disabled = false;
             }
@@ -310,11 +275,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if(formClienteSec) formClienteSec.reset();
         document.getElementById('cli-funerario').value = 'si';
         document.getElementById('cli-cremacion').value = 'no';
-        
         const inputFecha = document.getElementById('cli-vence');
         if (inputFecha) {
-            const hoyMas28 = new Date(Date.now() + (28 * 24 * 60 * 60 * 1000));
-            inputFecha.value = hoyMas28.toISOString().split('T')[0];
+            inputFecha.value = new Date(Date.now() + (28 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0];
         }
         if(modalClienteSec) modalClienteSec.style.display = 'flex';
     });
@@ -323,11 +286,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if(modalClienteSec) modalClienteSec.style.display = 'none';
     });
 
-    // === GUARDADO PROTEGIDO PARA NUEVO AFILIADO ===
     if(formClienteSec) {
         formClienteSec.addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            if (!navigator.onLine) {
+                mostrarToast("⚠️ Sin Conexión", "Conéctate a internet para guardar el afiliado de forma segura.");
+                return;
+            }
+
             const btnSubmit = e.target.querySelector('button[type="submit"]');
             const originalText = btnSubmit.innerHTML;
             btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
@@ -335,15 +302,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const fechaInput = document.getElementById('cli-vence').value;
-                let timestampVencimiento;
-                if (fechaInput) {
-                    const [y, m, d] = fechaInput.split('-');
-                    timestampVencimiento = new Date(y, m-1, d, 23, 59, 59).getTime();
-                } else {
-                    timestampVencimiento = Date.now() + (28 * 24 * 60 * 60 * 1000);
-                }
+                let timestampVencimiento = fechaInput ? new Date(`${fechaInput}T23:59:59`).getTime() : Date.now() + (28 * 86400000);
 
-                clientes.push({
+                const nuevoAfiliado = {
                     id: Date.now(),
                     nombre: document.getElementById('cli-nombre').value.trim(),
                     cedula: document.getElementById('cli-cedula').value.trim(),
@@ -355,22 +316,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     fechaVencimiento: timestampVencimiento,
                     estado: 'aldia',
                     montoPendiente: 0
-                });
+                };
 
+                clientes.push(nuevoAfiliado);
                 await guardarNube();
 
                 formClienteSec.reset();
                 if(modalClienteSec) modalClienteSec.style.display = 'none';
-                
-                if (navigator.onLine) {
-                    mostrarToast("Afiliado Creado", "Se guardó en el directorio exitosamente.");
-                } else {
-                    mostrarToast("⚠️ Creado Sin Conexión", "El afiliado se subirá cuando regrese el internet.");
-                }
+                mostrarToast("¡Afiliado Creado!", "Se ha guardado en el servidor principal.");
 
             } catch(error) {
+                clientes.pop(); // Revertir si falla
                 console.error(error);
-                mostrarToast("Error", "No se pudo registrar al afiliado.");
+                mostrarToast("❌ Error", "Falló la sincronización. Inténtalo de nuevo.");
             } finally {
                 btnSubmit.innerHTML = originalText;
                 btnSubmit.disabled = false;
@@ -378,9 +336,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.getElementById('buscador-clientes')?.addEventListener('input', (e) => {
-        renderizarClientes(e.target.value);
-    });
-
+    document.getElementById('buscador-clientes')?.addEventListener('input', (e) => renderizarClientes(e.target.value));
     escucharNubeEnTiempoReal();
 });
